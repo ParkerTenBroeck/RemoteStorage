@@ -1,9 +1,7 @@
 package com.parkertenbroeck.remotestorage;
 
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.component.ComponentType;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
+import net.minecraft.component.Component;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.MinecraftServer;
@@ -59,6 +57,14 @@ public class StorageSystem {
         private int inputPriority;
         private int outputPriority;
         public final ArrayList<ElementKind> list = new ArrayList<>();
+
+        public void setInputPriority(int inputPriority){
+            this.inputPriority = inputPriority;
+        }
+
+        public void setOutputPriority(int outputPriority){
+            this.outputPriority = outputPriority;
+        }
     }
 
     public final class StorageMember {
@@ -80,7 +86,7 @@ public class StorageSystem {
             this.linked = pos;
         }
 
-        public boolean canInsertItem(Item item){
+        public boolean canInsertItem(ItemData item){
             var group = getGroup();
 //            for(var filter : group.list){
 //                switch (filter){
@@ -98,7 +104,7 @@ public class StorageSystem {
             return true;
         }
 
-        public boolean canRemoveItem(Item item){
+        public boolean canRemoveItem(ItemData item){
             return true;
         }
 
@@ -117,7 +123,8 @@ public class StorageSystem {
         Whitelist;
     }
     public sealed interface ElementKind{}
-    public record Tag(String tag) implements ElementKind {}
-    public record ItemLoose(String name) implements ElementKind {}
-    public record ItemExact(Item exact) implements ElementKind {}
+    public record TagMatch(String tag) implements ElementKind {}
+    public record ItemMatch(String name) implements ElementKind {}
+    public record ComponentMatch(Component<?> component) implements ElementKind {}
+    public record ItemDataMatch(ItemData exact) implements ElementKind {}
 }

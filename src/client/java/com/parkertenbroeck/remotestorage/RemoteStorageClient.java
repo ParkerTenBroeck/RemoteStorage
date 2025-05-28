@@ -2,7 +2,7 @@ package com.parkertenbroeck.remotestorage;
 
 import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
-import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -53,8 +53,14 @@ public class RemoteStorageClient implements ClientModInitializer {
 			}
 		});
 
-		ClientPlayNetworking.registerGlobalReceiver(RemoteStorageContentsS2C.ID, (payload, context) -> {
-			RemoteStorage.LOGGER.info(payload.toString());
+		ClientPlayNetworking.registerGlobalReceiver(RemoteStorageContentsDeltaS2C.ID, (payload, context) -> {
+			if(context.player().currentScreenHandler.syncId == payload.syncId()){
+				if(context.player().currentScreenHandler instanceof RemoteStorageScreenHandler s){
+					s.receiveContentsDelta(payload);
+				}
+			}else{
+				RemoteStorage.LOGGER.warn("Received remote storage contents packet that doesn't match sync ID");
+			}
 		});
 	}
 }

@@ -5,7 +5,9 @@ import com.parkertenbroeck.remotestorage.RemoteStorage;
 import net.minecraft.util.Identifier;
 
 public class NetworkingConstants {
-    public static final Identifier OPEN_REMOTE_STORAGE_ID = Identifier.of(RemoteStorage.MOD_ID, "open_remote_storage");
+    public static final Identifier OPEN_REMOTE_STORAGE_C2S_ID = Identifier.of(RemoteStorage.MOD_ID, "open_remote_storage_c2s");
+    public static final Identifier OPEN_REMOTE_STORAGE_S2C_ID = Identifier.of(RemoteStorage.MOD_ID, "open_remote_storage_s2c");
     public static final Identifier REMOTE_STORAGE_CONTENTS_ID = Identifier.of(RemoteStorage.MOD_ID, "remote_storage_contents");
     public static final Identifier ADD_TO_REMOTE_STORAGE_ID = Identifier.of(RemoteStorage.MOD_ID, "add_to_remote_storage");
+    public static final Identifier REMOTE_STORAGE_REQUEST_ID = Identifier.of(RemoteStorage.MOD_ID, "remote_storage_request");
 }
