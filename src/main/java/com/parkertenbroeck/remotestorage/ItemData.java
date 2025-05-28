@@ -11,11 +11,11 @@ import net.minecraft.network.codec.PacketCodec;
 public record ItemData(ItemStack item) {
     public static final PacketCodec<RegistryByteBuf, ItemData> ITEM_DATA_PACKET_CODEC = new PacketCodec<>() {
         public ItemData decode(RegistryByteBuf buf) {
-            return new ItemData(ItemStack.PACKET_CODEC.decode(buf));
+            return new ItemData(ItemStack.OPTIONAL_PACKET_CODEC.decode(buf));
         }
 
         public void encode(RegistryByteBuf buf, ItemData data) {
-            ItemStack.PACKET_CODEC.encode(buf, data.item);
+            ItemStack.OPTIONAL_PACKET_CODEC.encode(buf, data.item);
         }
     };
 

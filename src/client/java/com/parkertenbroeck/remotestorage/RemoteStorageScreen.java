@@ -8,11 +8,15 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+
+import java.util.Comparator;
 
 @Environment(EnvType.CLIENT)
 public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandler> {
@@ -24,13 +28,11 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         super(handler, inventory, title);
         this.backgroundHeight = 214;
         this.backgroundWidth = 195;
-
     }
 
     @Override
     protected void onMouseClick(Slot slot, int slotId, int button, SlotActionType actionType) {
         if(slot instanceof RemoteStorageScreenHandler.RemoteStorageSlot s){
-            System.out.println(button + " " + actionType);
             switch(actionType){
                 case PICKUP -> {
                     if(button==0){
@@ -53,31 +55,51 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         super.onMouseClick(slot, slotId, button, actionType);
     }
 
+    void doAction(RemoteStorageActionC2S payload){
+        handler.acceptAction(payload, this.client.player);
+        ClientPlayNetworking.send(payload);
+    }
+
+    @Override
+    protected void handledScreenTick() {
+        var sorted = handler.currentMap.entrySet()
+                .stream()
+                .map(entry -> entry.getKey().withCount(entry.getValue()))
+                .sorted(Comparator.comparingInt(ItemStack::getCount).reversed())
+                .toList();
+        int offset = 0;
+        for(int i = 0; i < handler.fakeInventory.size(); i ++){
+            var slot = handler.getSlot(i+handler.playerInventorySize);
+            if(i+offset<sorted.size())
+                slot.setStack(sorted.get(i+offset));
+            else
+                slot.setStack(ItemStack.EMPTY);
+        }
+        super.handledScreenTick();
+    }
+
     void quickMoveOut(Slot stack){
         var item = new ItemData(stack.getStack());
-        handler.quickMoveOut(item, item.stackSize());
-        ClientPlayNetworking.send(RemoteStorageActionC2S.quickMoveOut(handler, item));
+        doAction(RemoteStorageActionC2S.quickMoveOut(handler, item));
     }
 
     void storageIntoCursor(Slot stack){
         var item = new ItemData(stack.getStack());
-        var amount = Math.min((stack.getStack().getCount()+1)/2, (stack.getStack().getMaxCount()+1)/2);
-        handler.storageIntoCursor(item, amount);
-        ClientPlayNetworking.send(RemoteStorageActionC2S.storageIntoCursor(handler, item, amount));
+        var amount = Math.min(stack.getStack().getCount(), stack.getStack().getMaxCount());
+        doAction(RemoteStorageActionC2S.storageIntoCursor(handler, item, amount));
     }
 
     void storageIntoCursorHalf(Slot stack){
         var item = new ItemData(stack.getStack());
         var amount = Math.min((stack.getStack().getCount()+1)/2, (stack.getStack().getMaxCount()+1)/2);
-        handler.storageIntoCursor(item, amount);
-        ClientPlayNetworking.send(RemoteStorageActionC2S.storageIntoCursor(handler, item, amount));
+        doAction(RemoteStorageActionC2S.storageIntoCursor(handler, item, amount));
     }
 
     void cursorIntoStorage(Slot stack, int amount){
-        var item = new ItemData(stack.getStack());
-        handler.cursorIntoStorage(amount);
-        ClientPlayNetworking.send(RemoteStorageActionC2S.cursorIntoStorage(handler, item, amount));
+        var item = new ItemData(handler.getCursorStack());
+        doAction(RemoteStorageActionC2S.cursorIntoStorage(handler, item, amount));
     }
+
 
     @Override
     public void render(DrawContext drawContext, int mouseX, int mouseY, float delta) {

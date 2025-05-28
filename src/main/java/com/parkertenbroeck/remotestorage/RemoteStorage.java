@@ -80,19 +80,7 @@ public class RemoteStorage implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(RemoteStorageActionC2S.ID, (payload, context) -> {
 			if(context.player().currentScreenHandler.syncId == payload.syncId()){
 				if(context.player().currentScreenHandler instanceof RemoteStorageScreenHandler s){
-					if(payload.isTakingFromStorage()){
-						if(payload.kind()==0) {
-							s.storageIntoCursor(payload.item(), payload.amount());
-						}else if(payload.kind()==1){
-							s.quickMoveOut(payload.item(), payload.amount());
-						}
-					}else{
-						if(payload.kind()==0) {
-							s.cursorIntoStorage(payload.amount());
-						}else if(payload.kind()==1) {
-							s.quickMove(context.player(), payload.slot());
-						}
-					}
+					s.acceptAction(payload, context.player());
 				}
 			}else{
 				RemoteStorage.LOGGER.warn("Received remote storage contents packet that doesn't match sync ID");

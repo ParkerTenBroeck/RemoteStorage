@@ -21,10 +21,10 @@ public record RemoteStorageActionC2S(ItemData item, int syncId, int revision, bo
         }, buf -> {
             var item = ItemData.ITEM_DATA_PACKET_CODEC.decode(buf);
             var syncId = PacketCodecs.SYNC_ID.decode(buf);
-            var revision = buf.readInt();
+            var revision = buf.readVarInt();
             var rk = buf.readByte();
             var remove = (rk&0b10000000)!=0;
-            var kind = rk&0b10000000;
+            var kind = rk&~0b10000000;
             var amount = buf.readVarInt();
             var slot = buf.readVarInt();
             return new RemoteStorageActionC2S(item, syncId, revision, remove, (byte) kind, amount, slot);

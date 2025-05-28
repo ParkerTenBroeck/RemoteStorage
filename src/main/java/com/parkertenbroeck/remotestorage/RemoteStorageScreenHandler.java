@@ -1,5 +1,6 @@
 package com.parkertenbroeck.remotestorage;
 
+import com.parkertenbroeck.remotestorage.packets.c2s.RemoteStorageActionC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -19,18 +20,34 @@ import java.util.Objects;
 
 
 public class RemoteStorageScreenHandler extends ScreenHandler {
-    private final RSInventory fakeInventory;
+    public final RSInventory fakeInventory;
     private final ServerPlayerEntity player;
     private StorageSystem system;
 
     private final int width = 9;
     private final int height = 6;
-    private final int playerInventorySize;
+    public final int playerInventorySize;
 
     public int storageRevision = 0;
 
-    private Map<ItemData, Integer> currentMap = new HashMap<>();
+    public Map<ItemData, Integer> currentMap = new HashMap<>();
     private Map<ItemData, Integer> lastMap = new HashMap<>();
+
+    public void acceptAction(RemoteStorageActionC2S payload, PlayerEntity player) {
+        if(payload.isTakingFromStorage()){
+            if(payload.kind()==0) {
+                storageIntoCursor(payload.item(), payload.amount());
+            }else if(payload.kind()==1){
+                quickMoveOut(payload.item(), payload.amount());
+            }
+        }else{
+            if(payload.kind()==0) {
+                cursorIntoStorage(payload.amount());
+            }else if(payload.kind()==1) {
+                quickMove(player, payload.slot());
+            }
+        }
+    }
 
     static class RemoteStorageSlot extends Slot{
         public RemoteStorageSlot(Inventory inventory, int index, int x, int y) {
@@ -148,20 +165,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             currentMap = contents.map();
             storageRevision = contents.revision();
         }else{
-            contents.map().forEach((key, value) -> {
-                if(value==0)currentMap.remove(key);
-                else currentMap.put(key, value);
-            });
-        }
-        int i = 0;
-        for(var entry : currentMap.entrySet()){
-            var stack = entry.getKey().withCount(entry.getValue());
-            getSlot(playerInventorySize+i).setStack(stack);
-            i++;
-            if(i>=fakeInventory.size())break;
-        }
-        for(; i < fakeInventory.size(); i ++){
-            getSlot(playerInventorySize+i).setStack(ItemStack.EMPTY);
+            contents.map().forEach(this::setLocalItemCount);
         }
     }
 
@@ -183,89 +187,14 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         super.onSlotClick(slotIndex, button, actionType, player);
     }
 
-    //    @Override
-//    public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
-//
-//        if(system!=null)System.out.println(actionType + " " + slotIndex + " " + button);
-//        if(slotIndex >= inventory.size() || slotIndex < 0) {
-//            super.onSlotClick(slotIndex, button, actionType, player);
-//            return;
-//        }
-//        switch(actionType){
-//            case PICKUP -> {
-//                Slot slot = getSlot(slotIndex);
-//                if(button==0){
-//                    if(getCursorStack().isEmpty()){
-//                        if(slot.getStack().isEmpty())return;
-//                        int desired = Math.min(slot.getStack().getCount(), slot.getStack().getMaxCount());
-//                        var item = slot.getStack().getItem();
-//                        if(isServer()){
-//                            var got = getFromStorage(item, desired).getCount();
-//                            slot.getStack().setCount(slot.getStack().getCount()-got);
-//                            if(got!=desired)slot.markDirty();
-//                            desired = got;
-//                        }else{
-//                            slot.getStack().setCount(slot.getStack().getCount()-desired);
-//                            inventory.checkShift(slot.getIndex());
-//                        }
-//                        setCursorStack(new ItemStack(item, desired));
-//                    }else{
-//                        if(system!=null)
-//                            insertIntoStorage(getCursorStack());
-//                        else {
-//                            setCursorStack(ItemStack.EMPTY);
-//                        }
-//                    }
-//                }else if(button==1){
-//                    if(getCursorStack().isEmpty()){
-//                        var current = slot.getStack().getCount();
-//                        var desired = (current+1)/2;
-//                        if(current>slot.getStack().getMaxCount()){
-//                            desired = (slot.getStack().getMaxCount()+1)/2;
-//                        }
-//                        if(system!=null){
-//                            var got = getFromStorage(slot.getStack().getItem(), desired);
-//                            slot.getStack().setCount(slot.getStack().getCount()-got.getCount());
-//                            if(got.getCount()!=desired)slot.markDirty();
-//                            setCursorStack(got);
-//                        }else{
-//                            setCursorStack(slot.getStack().copyWithCount(desired));
-//                            slot.getStack().setCount(slot.getStack().getCount()-desired);
-//                        }
-//                    }else{
-//                        if(system!=null) {
-//                            insertIntoStorage(getCursorStack(), 1);
-//                            slot.getStack().setCount(slot.getStack().getCount()-1);
-//                        }else {
-//                            slot.getStack().setCount(slot.getStack().getCount()-1);
-//                            getCursorStack().setCount(getCursorStack().getCount() - 1);
-//                        }
-//                    }
-//                    inventory.checkShift(slot.getIndex());
-//                }
-//
-//            }
-//            case QUICK_MOVE -> quickMove(player, slotIndex);
-//            case THROW -> {
-//                Slot slot = getSlot(slotIndex);
-//                if(slot.getStack().isEmpty())return;
-//                var amount = button==0?Math.min(slot.getStack().getCount(), 1):Math.min(slot.getStack().getCount(), slot.getStack().getMaxCount());
-//                if(amount<=0)return;
-//                if(system!=null){
-//                    amount = getFromStorage(slot.getStack().getItem(), amount).getCount();
-//                    slot.markDirty();
-//                }
-//                player.dropItem(slot.getStack().copyWithCount(amount), true);
-//                slot.getStack().setCount(slot.getStack().getCount()-amount);
-//            }
-//
-//            case CLONE, SWAP, QUICK_CRAFT, PICKUP_ALL -> {}
-//        }
-//    }
-
-    void modifyItemLocalCount(ItemData item, int count){
+    void modifyLocalItemCount(ItemData item, int count){
         var result = currentMap.compute(item, (ignore, old_c) -> (old_c==null?0:old_c)+count);
         if(result<=0)currentMap.remove(item);
+    }
+
+    void setLocalItemCount(ItemData item, int count){
+        if(count<=0)currentMap.remove(item);
+        else currentMap.put(item, count);
     }
 
     void storageIntoCursor(ItemData item, int amount){
@@ -277,17 +206,20 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         if(isServer()){
             var got = getFromStorage(item, capped);
             if(got.getCount()!=capped)makeDirty(item);
-            getCursorStack().setCount(getCursorStack().getCount()+got.getCount());
+            capped = got.getCount();
         }else{
-            modifyItemLocalCount(item, -capped);
-            getCursorStack().setCount(getCursorStack().getCount()+capped);
+            modifyLocalItemCount(item, -capped);
         }
+        if(getCursorStack().isEmpty())
+            setCursorStack(item.withCount(capped));
+        else
+            getCursorStack().setCount(getCursorStack().getCount()+capped);
     }
 
     void cursorIntoStorage(int amount){
         if(getCursorStack().isEmpty())return;
 
-        int capped = Math.max(getCursorStack().getCount(), amount);
+        int capped = Math.min(getCursorStack().getCount(), amount);
         var item = new ItemData(getCursorStack());
         if(isServer()){
             var old = getCursorStack().getCount();
@@ -295,7 +227,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             var diff = old-getCursorStack().getCount();
             if(diff!=capped) makeDirty(item);
         }else{
-            modifyItemLocalCount(item, -capped);
+            modifyLocalItemCount(item, capped);
             getCursorStack().setCount(getCursorStack().getCount()-capped);
         }
     }
@@ -345,7 +277,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         }else{
             // player inv -> storage system
             if(isClient()){
-                modifyItemLocalCount(new ItemData(slot.getStack()), slot.getStack().getCount());
+                modifyLocalItemCount(new ItemData(slot.getStack()), slot.getStack().getCount());
                 slot.setStack(ItemStack.EMPTY); // we can't check if it will succeed on client so we assume it will work
             }else{
                 insertIntoStorage(slot.getStack());
