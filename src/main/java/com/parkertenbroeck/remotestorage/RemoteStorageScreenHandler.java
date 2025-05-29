@@ -78,17 +78,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         @Override
         public void setStack(int slot, ItemStack stack) {
             this.heldStacks.set(slot, stack);
-            this.markDirty();
-        }
-
-        public void checkShift(int slot_index) {
-            if(this.heldStacks.get(slot_index).isEmpty()){
-                for(int i = slot_index; i < this.heldStacks.size()-1;i++){
-                    this.heldStacks.set(i, this.heldStacks.get(i+1));
-                }
-                this.heldStacks.set(this.heldStacks.size()-1, ItemStack.EMPTY);
-                this.markDirty();
-            }
+//            this.markDirty();
         }
     }
 
@@ -101,10 +91,10 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         fakeInventory = null;
 
         this.addPlayerSlots(playerInventory, 9, 132);
+//        serverTick();// gets the contents packet there faster... should probably put it in the custom payload?
     }
 
-    @Override
-    public void sendContentUpdates() {
+    public void serverTick(){
         if(isServer()) {
             lastMap.clear();
 
@@ -134,8 +124,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             if(!difference.isEmpty())
                 ServerPlayNetworking.send(player, new RemoteStorageContentsDeltaS2C(syncId, storageRevision, difference));
         }
-
-        super.sendContentUpdates();
     }
 
     public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C s2c) {
@@ -151,7 +139,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         this.fakeInventory = new RSInventory(height*width);
         fakeInventory.onOpen(playerInventory.player);
 
-
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 9 + x * 18, 18 + y * 18));
@@ -160,7 +147,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
     }
 
     public void receiveContentsDelta(RemoteStorageContentsDeltaS2C contents){
-        System.out.println(contents.map());
+        System.out.println(contents);
         if(contents.revision()!=storageRevision){
             currentMap = contents.map();
             storageRevision = contents.revision();
@@ -268,7 +255,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
 
     @Override
     public ItemStack quickMove(PlayerEntity player, int slot_index) {
-        System.out.println(player);
         Slot slot = this.slots.get(slot_index);
         if(slot == null || !slot.hasStack()) return ItemStack.EMPTY;
 

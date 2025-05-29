@@ -8,7 +8,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.Slot;
@@ -31,7 +30,15 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+
+        System.out.println(horizontalAmount + " "+  verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
     protected void onMouseClick(Slot slot, int slotId, int button, SlotActionType actionType) {
+        System.out.println(slot + " " + button + " " + actionType);
         if(slot instanceof RemoteStorageScreenHandler.RemoteStorageSlot s){
             switch(actionType){
                 case PICKUP -> {
@@ -43,7 +50,7 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
                         else cursorIntoStorage(slot, 1);
                     }
                 }
-                case QUICK_MOVE -> quickMoveOut(slot);
+                case QUICK_MOVE -> quickMoveOutStack(new ItemData(slot.getStack()));
                 case SWAP -> {}
                 case CLONE -> {}
                 case THROW -> {}
@@ -78,9 +85,14 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         super.handledScreenTick();
     }
 
-    void quickMoveOut(Slot stack){
-        var item = new ItemData(stack.getStack());
-        doAction(RemoteStorageActionC2S.quickMoveOut(handler, item));
+    void quickMoveOutStack(ItemData item){
+        if(item.withCount(1).isEmpty())return;
+        doAction(RemoteStorageActionC2S.quickMoveOut(handler, item, item.stackSize()));
+    }
+
+    void quickMoveOutOne(ItemData item){
+        if(item.withCount(1).isEmpty())return;
+        doAction(RemoteStorageActionC2S.quickMoveOut(handler, item, 1));
     }
 
     void storageIntoCursor(Slot stack){

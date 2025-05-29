@@ -31,8 +31,8 @@ public record RemoteStorageActionC2S(ItemData item, int syncId, int revision, bo
         }
     );
 
-    public static RemoteStorageActionC2S quickMoveOut(RemoteStorageScreenHandler handler, ItemData item){
-        return new RemoteStorageActionC2S(item, handler.syncId, handler.storageRevision, true, (byte)1, item.stackSize(), 0);
+    public static RemoteStorageActionC2S quickMoveOut(RemoteStorageScreenHandler handler, ItemData item, int amount){
+        return new RemoteStorageActionC2S(item, handler.syncId, handler.storageRevision, true, (byte)1, amount, 0);
     }
 
     public static RemoteStorageActionC2S storageIntoCursor(RemoteStorageScreenHandler handler, ItemData item, int amount){

@@ -8,6 +8,7 @@ import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS
 import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
@@ -48,6 +49,14 @@ public class RemoteStorage implements ModInitializer {
 			system.clear();
 		});
 
+		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			for(var player : server.getPlayerManager().getPlayerList()){
+				if(player.currentScreenHandler instanceof RemoteStorageScreenHandler s){
+					s.serverTick();
+				}
+			}
+		});
+
 		ServerPlayNetworking.registerGlobalReceiver(OpenRemoteStorageC2S.ID, (payload, context) -> {
 			context.player().openHandledScreen(
 				new ExtendedScreenHandlerFactory<>(){
@@ -72,7 +81,11 @@ public class RemoteStorage implements ModInitializer {
 		ServerPlayNetworking.registerGlobalReceiver(AddToRemoteStorageC2S.ID, (payload, context) -> {
 			var entity = context.player().getServerWorld().getBlockEntity(payload.blockPos());
 			if(entity instanceof Inventory){
-				system.add_default(payload.blockPos(), context.player().getServerWorld().getRegistryKey().getValue());
+				var added = system.add_default(payload.blockPos(), context.player().getServerWorld().getRegistryKey().getValue());
+				if(added)
+					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " added to system"));
+				else
+					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " is already in system"));
 			}else{
 				context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " is not a valid inventory"));
 			}

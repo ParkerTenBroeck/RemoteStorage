@@ -1,5 +1,12 @@
 package com.parkertenbroeck.remotestorage;
 
+import com.mojang.blaze3d.buffers.BufferType;
+import com.mojang.blaze3d.buffers.BufferUsage;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
@@ -9,11 +16,19 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.renderer.v1.Renderer;
+import net.fabricmc.fabric.impl.renderer.RendererManager;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
+import org.joml.Matrix4fStack;
 import org.lwjgl.glfw.GLFW;
 
 
@@ -22,6 +37,10 @@ public class RemoteStorageClient implements ClientModInitializer {
 
 	private static KeyBinding openRemoteStorage;
 	private static KeyBinding addToRemoteStorage;
+
+	private static GpuBuffer vertexBuffer;
+	private static int indexCount = 0;
+	private static final RenderSystem.ShapeIndexBuffer indices = RenderSystem.getSequentialBuffer(VertexFormat.DrawMode.LINES);
 
 	@Override
 	public void onInitializeClient() {
@@ -51,6 +70,10 @@ public class RemoteStorageClient implements ClientModInitializer {
 					ClientPlayNetworking.send(new AddToRemoteStorageC2S(((BlockHitResult)client.crosshairTarget).getBlockPos()));
                 }
 			}
+		});
+
+		WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
+			OutlineRenderer.render(context);
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(RemoteStorageContentsDeltaS2C.ID, (payload, context) -> {

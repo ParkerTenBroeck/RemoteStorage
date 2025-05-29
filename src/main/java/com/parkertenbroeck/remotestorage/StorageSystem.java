@@ -29,8 +29,11 @@ public class StorageSystem {
         clear();
     }
 
-    public void add_default(BlockPos pos, Identifier world){
-        members.computeIfAbsent(new Position(pos, world), p -> new StorageMember(p, groups.get(null)));
+    public boolean add_default(BlockPos pos, Identifier world){
+        var p = new Position(pos, world);
+        if(members.containsKey(p))return false;
+        members.put(p, new StorageMember(p, groups.get(null)));
+        return true;
     }
 
     public void clear() {
