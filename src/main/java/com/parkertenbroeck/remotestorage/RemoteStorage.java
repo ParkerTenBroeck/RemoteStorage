@@ -32,7 +32,7 @@ public class RemoteStorage implements ModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	public static final ScreenHandlerType<RemoteStorageScreenHandler> REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE = new ExtendedScreenHandlerType<>(RemoteStorageScreenHandler::new, OpenRemoteStorageS2C.CODEC);
 
-	public final StorageSystem system = new StorageSystem();
+	public final static StorageSystem system = new StorageSystem();
 
 	@Override
 	public void onInitialize() {

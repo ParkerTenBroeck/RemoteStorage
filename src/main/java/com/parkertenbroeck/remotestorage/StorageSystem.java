@@ -11,6 +11,7 @@ import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.stream.Stream;
 
 public class StorageSystem {
     public String name = "";
@@ -52,6 +53,10 @@ public class StorageSystem {
 
     public Iterable<StorageMember> unorderedMembers(){
         return members.values();
+    }
+
+    public Stream<StorageMember> streamUnorderedMembers(){
+        return members.values().stream();
     }
 
     public final class Group {
