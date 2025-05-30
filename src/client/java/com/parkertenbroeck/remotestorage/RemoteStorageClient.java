@@ -72,7 +72,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 			}
 		});
 
-		WorldRenderEvents.LAST.register(context -> {
+		WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
 			OutlineRenderer.render(context);
 		});
 

@@ -56,8 +56,8 @@ public class OutlineRenderer {
             thickness<0?LINES_NO_DEPTH_PIPE:LINES_PIPE,
             RenderLayer.MultiPhaseParameters.builder()
                     .lineWidth(new RenderPhase.LineWidth(OptionalDouble.of(Math.abs(thickness))))
-                    .layering(RenderPhase.VIEW_OFFSET_Z_LAYERING)
-                    .target(RenderPhase.ITEM_ENTITY_TARGET)
+                    .layering(RenderPhase.VIEW_OFFSET_Z_LAYERING_FORWARD)
+                    .target(RenderPhase.TRANSLUCENT_TARGET)
                     .build(false)
     );
 
@@ -73,7 +73,7 @@ public class OutlineRenderer {
         var positions = RemoteStorage.system.streamUnorderedMembers()
                 .map(m -> m.pos)
                 .filter(p -> getManhattanDistance(p.pos(), context.camera().getPos().x, context.camera().getPos().y, context.camera().getPos().z)<80.0)
-//                .filter(p -> p.world().equals(MinecraftClient.getInstance().player.getWorld().getRegistryKey().getRegistry()))
+                .filter(p -> p.world().equals(MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue()))
                 .map(StorageSystem.Position::pos)
                 .toList();
 
