@@ -67,6 +67,10 @@ public class RemoteStorage implements ModInitializer {
 
 		ServerPlayNetworking.registerGlobalReceiver(LinkRemoteStorageMemberC2S.ID, (payload, context) -> {
 			var system = RemoteStorageSavedState.get(context.player());
+			if(payload.child().equals(payload.parent())){
+				context.player().sendMessage(Text.of("Cannot link to self"));
+				return;
+			}
 			var child = StorageSystem.Position.of(context.player(), payload.child());
 			var parent = StorageSystem.Position.of(context.player(), payload.parent());
 			if(!system.members.containsKey(child)){
@@ -88,10 +92,7 @@ public class RemoteStorage implements ModInitializer {
 				if(added) {
 					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " added to system"));
 					context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
-				}else
-					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " is already in system"));
-			}else{
-				context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " is not a valid inventory"));
+				}
 			}
 		});
 
