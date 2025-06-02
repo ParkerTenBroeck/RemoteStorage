@@ -34,6 +34,8 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
     private Map<ItemData, Integer> lastMap = new HashMap<>();
 
     public void acceptAction(RemoteStorageActionC2S payload, PlayerEntity player) {
+        if(payload.revision()!=storageRevision)
+            RemoteStorage.LOGGER.warn("Storage revisions don't match");
         if(payload.isTakingFromStorage()){
             if(payload.kind()==0) {
                 storageIntoCursor(payload.item(), payload.amount());
@@ -78,7 +80,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         @Override
         public void setStack(int slot, ItemStack stack) {
             this.heldStacks.set(slot, stack);
-//            this.markDirty();
         }
     }
 
@@ -91,7 +92,23 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         fakeInventory = null;
 
         this.addPlayerSlots(playerInventory, 9, 132);
-//        serverTick();// gets the contents packet there faster... should probably put it in the custom payload?
+    }
+
+    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C s2c) {
+        super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
+
+        this.player = null;
+        playerInventorySize = playerInventory.getMainStacks().size();
+        this.addPlayerSlots(playerInventory, 9, 132);
+
+        this.fakeInventory = new RSInventory(height*width);
+        fakeInventory.onOpen(playerInventory.player);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 9 + x * 18, 18 + y * 18));
+            }
+        }
     }
 
     public void serverTick(){
@@ -123,26 +140,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
 
             if(!difference.isEmpty())
                 ServerPlayNetworking.send(player, new RemoteStorageContentsDeltaS2C(syncId, storageRevision, difference));
-        }
-    }
-
-    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C s2c) {
-        super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
-
-        this.player = null;
-        playerInventorySize = playerInventory.getMainStacks().size();
-        this.addPlayerSlots(playerInventory, 9, 132);
-
-
-        int width = 9;
-        int height = 6;
-        this.fakeInventory = new RSInventory(height*width);
-        fakeInventory.onOpen(playerInventory.player);
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 9 + x * 18, 18 + y * 18));
-            }
         }
     }
 
@@ -191,7 +188,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         int capped = Math.min(amount, stackSize-getCursorStack().getCount());
         if(capped<=0)return;
         if(isServer()){
-            var got = getFromStorage(item, capped);
+            var got = system.getFromStorage(player, item, capped);
             if(got.getCount()!=capped)makeDirty(item);
             capped = got.getCount();
         }else{
@@ -210,7 +207,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         var item = new ItemData(getCursorStack());
         if(isServer()){
             var old = getCursorStack().getCount();
-            insertIntoStorage(getCursorStack(), capped);
+            system.insertIntoStorage(player, getCursorStack(), capped);
             var diff = old-getCursorStack().getCount();
             if(diff!=capped) makeDirty(item);
         }else{
@@ -224,13 +221,13 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             //TODO calculate max transfer that player inventory can accept
             amount =  Math.min(amount, item.stackSize());
 
-            var transferred = getFromStorage(item, amount);
+            var transferred = system.getFromStorage(player, item, amount);
 
             this.insertItem(transferred, 0, playerInventorySize, true);
 
             if(transferred.getCount()!=0){
                 RemoteStorage.LOGGER.warn("Not all items transferred!");
-                insertIntoStorage(transferred);
+                system.insertIntoStorage(player, transferred);
                 if(transferred.getCount()!=0){
                     this.setCursorStack(transferred);
                     RemoteStorage.LOGGER.warn("Not all items transferred BACK!!!!!");
@@ -256,7 +253,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
     @Override
     public ItemStack quickMove(PlayerEntity player, int slot_index) {
         Slot slot = this.slots.get(slot_index);
-        if(slot == null || !slot.hasStack()) return ItemStack.EMPTY;
+        if(!slot.hasStack()) return ItemStack.EMPTY;
 
         if(slot_index >= playerInventorySize){
             RemoteStorage.LOGGER.warn("This should not be ran");
@@ -266,7 +263,7 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
                 modifyLocalItemCount(new ItemData(slot.getStack()), slot.getStack().getCount());
                 slot.setStack(ItemStack.EMPTY); // we can't check if it will succeed on client so we assume it will work
             }else{
-                insertIntoStorage(slot.getStack());
+                system.insertIntoStorage(this.player, slot.getStack());
                 if(!slot.getStack().isEmpty()) {
                     slot.markDirty();
                     makeDirty(new ItemData(slot.getStack()));
@@ -275,66 +272,6 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         }
 
         return ItemStack.EMPTY;
-    }
-
-    public ItemStack getFromStorage(ItemData item, int desired){
-        int moved = 0;
-        for (var member : system.outputPriorityOrdered()) {
-            if(!member.canRemoveItem(item))continue;
-            if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
-                for(var stack : inv){
-                    if(item.equals(stack)){
-                        var remaining = desired-moved;
-                        var toMove = Math.min(remaining, stack.getCount());
-                        if(toMove>0){
-                            moved += toMove;
-                            stack.setCount(stack.getCount()-toMove);
-                            inv.markDirty();
-                        }
-                    }
-                }
-            }
-            if(moved==desired)break;
-        }
-        return item.withCount(moved);
-    }
-
-    public void insertIntoStorage(ItemStack stack){
-        insertIntoStorage(stack, stack.getCount());
-    }
-
-    public void insertIntoStorage(ItemStack stack, int desiredAmount){
-        desiredAmount = Math.min(stack.getCount(), desiredAmount);
-        outer:
-        for (var member : system.inputPriorityOrdered()) {
-            if(desiredAmount==0)break;
-            if(stack.isEmpty())break;
-            if(!member.canInsertItem(new ItemData(stack)))continue;
-
-            if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
-                for (int i = 0 ; i < inv.size(); i ++) {
-                    if(desiredAmount==0)break outer;
-
-                    var other_stack = inv.getStack(i);
-                    if (other_stack.isEmpty()) {
-                        var amount = Math.min(desiredAmount, stack.getMaxCount());
-                        inv.setStack(i, stack.copyWithCount(amount));
-                        stack.setCount(stack.getCount()-amount);
-                        desiredAmount -= amount;
-                        inv.markDirty();
-                    } else if (ItemData.equals(other_stack, stack)) {
-                        var remaining = other_stack.getMaxCount() - other_stack.getCount();
-                        var toMove = Math.min(remaining, desiredAmount);
-                        if (toMove > 0) {
-                            stack.setCount(stack.getCount() - toMove);
-                            desiredAmount -= toMove;
-                            other_stack.setCount(other_stack.getCount() + toMove);
-                            inv.markDirty();
-                        }
-                    }
-                }
-            }
-        }
     }
 
     @Override

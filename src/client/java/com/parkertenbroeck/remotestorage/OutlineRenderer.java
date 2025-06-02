@@ -4,10 +4,9 @@ package com.parkertenbroeck.remotestorage;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.vertex.*;
-import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.RenderPipelines;
@@ -68,22 +67,29 @@ public class OutlineRenderer {
         return new BlockPos(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
-    public static synchronized void render(WorldRenderContext context) {
+    public static synchronized void render(WorldRenderContext context, StorageSystemPositionsS2C system) {
         var target = targetBlock();
-        var positions = RemoteStorage.system.streamUnorderedMembers()
-                .map(m -> m.pos)
-                .filter(p -> getManhattanDistance(p.pos(), context.camera().getPos().x, context.camera().getPos().y, context.camera().getPos().z)<80.0)
-                .filter(p -> p.world().equals(MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue()))
-                .map(StorageSystem.Position::pos)
+        var world = MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue();
+        var members = system.updates().stream()
+                .filter(p -> getManhattanDistance(p.pos().pos(), context.camera().getPos())<80.0)
+                .filter(p -> p.pos().world().equals(world))
                 .toList();
 
-        for(var pos : positions){
-            if(pos.equals(target)) {
-                DebugRenderer.drawBox(context.matrixStack(), context.consumers(), pos, 0.0f, 1.0f, 1.0f, 1.0f, 0.5f);
-            }
-            drawBox(context.matrixStack(), context.consumers(), pos, 1.0f, 1.0f, 1.0f, 1.0f);
+        if(RemoteStorageClient.linkTarget!=null){
+            DebugRenderer.drawBox(context.matrixStack(), context.consumers(), RemoteStorageClient.linkTarget, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f);
         }
-        drawPathLines(context.matrixStack(), context.consumers(), positions);
+
+        for(var member : members){
+            if(member.pos().pos().equals(target)) {
+                DebugRenderer.drawBox(context.matrixStack(), context.consumers(), target, 0.0f, 1.0f, 1.0f, 1.0f, 0.5f);
+            }
+
+            drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.parent()==null?1.0f:0.0f, 1.0f);
+
+            if(member.parent()!=null){
+                drawPathLines(context.matrixStack(), context.consumers(), List.of(member.pos().pos(), member.parent().pos()));
+            }
+        }
     }
 
     public static void drawBox(MatrixStack matrices, VertexConsumerProvider vertexConsumers, BlockPos pos, float red, float green, float blue, float alpha) {
@@ -98,6 +104,10 @@ public class OutlineRenderer {
     public static void drawBox(MatrixStack matrices, VertexConsumerProvider vertexConsumers, Box box, float red, float green, float blue, float alpha) {
         VertexConsumer vertexConsumer = vertexConsumers.getBuffer(LINES.apply(3));
         VertexRendering.drawBox(matrices, vertexConsumer, box, red, green, blue, alpha);
+    }
+
+    private static float getManhattanDistance(BlockPos pos, Vec3d camera){
+        return getManhattanDistance(pos, camera.x, camera.y, camera.z);
     }
 
     private static float getManhattanDistance(BlockPos pos, double x, double y, double z) {

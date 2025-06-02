@@ -1,15 +1,11 @@
 package com.parkertenbroeck.remotestorage;
 
-import com.mojang.blaze3d.buffers.BufferType;
-import com.mojang.blaze3d.buffers.BufferUsage;
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
+import com.parkertenbroeck.remotestorage.packets.c2s.LinkRemoteStorageMemberC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
+import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -17,47 +13,52 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.renderer.v1.Renderer;
-import net.fabricmc.fabric.impl.renderer.RendererManager;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import org.joml.Matrix4fStack;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.List;
+
+import static com.parkertenbroeck.remotestorage.RemoteStorage.MOD_ID;
+import static com.parkertenbroeck.remotestorage.RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE;
 
 
 @Environment(EnvType.CLIENT)
 public class RemoteStorageClient implements ClientModInitializer {
-
 	private static KeyBinding openRemoteStorage;
-	private static KeyBinding addToRemoteStorage;
+	private static KeyBinding toggleEditMode;
+	private static boolean attackPressed = false;
+	private static boolean usePressed = false;
 
-	private static GpuBuffer vertexBuffer;
-	private static int indexCount = 0;
-	private static final RenderSystem.ShapeIndexBuffer indices = RenderSystem.getSequentialBuffer(VertexFormat.DrawMode.LINES);
+	private static StorageSystemPositionsS2C system = new StorageSystemPositionsS2C("default", List.of());
+	private static boolean editMode = false;
+	public static BlockPos linkTarget = null;
 
 	@Override
 	public void onInitializeClient() {
 		openRemoteStorage = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-				"key."+RemoteStorage.MOD_ID+".open_inv",
+				"key."+ MOD_ID+".open_inv",
 				InputUtil.Type.KEYSYM,
 				GLFW.GLFW_KEY_X,
-				"category." + RemoteStorage.MOD_ID
+				"category." + MOD_ID
 		));
-		addToRemoteStorage = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-				"key."+RemoteStorage.MOD_ID+".add_inv",
+		toggleEditMode = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key."+ MOD_ID+".edit_mode",
 				InputUtil.Type.KEYSYM,
 				GLFW.GLFW_KEY_J,
-				"category." + RemoteStorage.MOD_ID
+				"category." + MOD_ID
 		));
 
-		HandledScreens.register(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, RemoteStorageScreen::new);
+		HandledScreens.register(REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, RemoteStorageScreen::new);
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while(openRemoteStorage.wasPressed()){
@@ -65,15 +66,63 @@ public class RemoteStorageClient implements ClientModInitializer {
 			}
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while(addToRemoteStorage.wasPressed()){
-                if (client.crosshairTarget.getType() == HitResult.Type.BLOCK) {
-					ClientPlayNetworking.send(new AddToRemoteStorageC2S(((BlockHitResult)client.crosshairTarget).getBlockPos()));
-                }
+			while(toggleEditMode.wasPressed()){
+                editMode = !editMode;
+				client.player.sendMessage(Text.of((editMode?"Entered":"Exited")+" remote storage edit mode"), true);
+				linkTarget = null;
 			}
+			outer:
+			if(client.options.useKey.isPressed()&&!usePressed){
+				if(!editMode)break outer;
+				if(client.crosshairTarget==null)break outer;
+				if(client.crosshairTarget.getType() == HitResult.Type.BLOCK){
+					var pos = ((BlockHitResult)client.crosshairTarget).getBlockPos();
+					if(client.player.isSneaking()){
+						linkTarget = pos;
+					}else{
+						ClientPlayNetworking.send(new AddToRemoteStorageC2S(pos));
+						if(linkTarget!=null){
+							ClientPlayNetworking.send(new LinkRemoteStorageMemberC2S(pos, linkTarget));
+						}
+					}
+				}else if(client.player.isSneaking()){
+					linkTarget = null;
+				}
+			}
+
+			outer:
+			if (client.options.attackKey.isPressed()&&!attackPressed){
+				if(!editMode)break outer;
+				if(client.crosshairTarget==null)break outer;
+				if(client.crosshairTarget.getType() == HitResult.Type.BLOCK){
+					var pos = ((BlockHitResult)client.crosshairTarget).getBlockPos();
+				}
+			}
+
+			attackPressed = client.options.attackKey.isPressed();
+			usePressed = client.options.useKey.isPressed();
+		});
+
+		UseBlockCallback.EVENT.register((playerEntity, world, hand, blockHitResult) -> {
+			if(!editMode) return ActionResult.PASS;
+			return ActionResult.FAIL;
+		});
+
+		AttackBlockCallback.EVENT.register((playerEntity, world, hand, pos, direction) -> {
+			if(!editMode) return ActionResult.PASS;
+			return ActionResult.FAIL;
 		});
 
 		WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
-			OutlineRenderer.render(context);
+			if (editMode) OutlineRenderer.render(context, system);
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(StorageSystemPositionsS2C.ID, (packet, context) -> system = packet);
+
+		ClientPlayNetworking.registerGlobalReceiver(OpenRemoteStorageS2C.ID, (packet, context) -> {
+			var handler = new RemoteStorageScreenHandler(packet.syncId(), context.player().getInventory(), packet);
+			context.player().currentScreenHandler = handler;
+			context.client().setScreen(new RemoteStorageScreen(handler, context.player().getInventory(), packet.title()));
 		});
 
 		ClientPlayNetworking.registerGlobalReceiver(RemoteStorageContentsDeltaS2C.ID, (payload, context) -> {

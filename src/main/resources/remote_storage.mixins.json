@@ -3,7 +3,7 @@
 	"package": "com.parkertenbroeck.remotestorage.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"ExampleMixin"
+		"ScreenHandlerNetworkingMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

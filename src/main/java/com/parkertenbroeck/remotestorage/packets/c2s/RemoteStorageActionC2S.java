@@ -2,14 +2,14 @@ package com.parkertenbroeck.remotestorage.packets.c2s;
 
 import com.parkertenbroeck.remotestorage.ItemData;
 import com.parkertenbroeck.remotestorage.RemoteStorageScreenHandler;
-import com.parkertenbroeck.remotestorage.packets.NetworkingConstants;
+import com.parkertenbroeck.remotestorage.packets.NetworkingUtils;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.packet.CustomPayload;
 
 public record RemoteStorageActionC2S(ItemData item, int syncId, int revision, boolean isTakingFromStorage, byte kind, int amount, int slot) implements CustomPayload{
-    public static final CustomPayload.Id<RemoteStorageActionC2S> ID = new CustomPayload.Id<>(NetworkingConstants.REMOTE_STORAGE_REQUEST_ID);
+    public static final CustomPayload.Id<RemoteStorageActionC2S> ID = NetworkingUtils.createId(RemoteStorageActionC2S.class);
     public static final PacketCodec<RegistryByteBuf, RemoteStorageActionC2S> CODEC = PacketCodec.of(
         (value, buf) -> {
             ItemData.ITEM_DATA_PACKET_CODEC.encode(buf, value.item);

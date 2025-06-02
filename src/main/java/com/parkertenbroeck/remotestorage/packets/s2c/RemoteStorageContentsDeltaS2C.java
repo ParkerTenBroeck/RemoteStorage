@@ -1,7 +1,7 @@
 package com.parkertenbroeck.remotestorage.packets.s2c;
 
 import com.parkertenbroeck.remotestorage.ItemData;
-import com.parkertenbroeck.remotestorage.packets.NetworkingConstants;
+import com.parkertenbroeck.remotestorage.packets.NetworkingUtils;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public record RemoteStorageContentsDeltaS2C(int syncId, int revision, Map<ItemData, Integer> map) implements CustomPayload {
-    public static final CustomPayload.Id<RemoteStorageContentsDeltaS2C> ID = new CustomPayload.Id<>(NetworkingConstants.REMOTE_STORAGE_CONTENTS_ID);
+    public static final CustomPayload.Id<RemoteStorageContentsDeltaS2C> ID = NetworkingUtils.createId(RemoteStorageContentsDeltaS2C.class);
     public static final PacketCodec<RegistryByteBuf, Map<ItemData, Integer>> ITEM_DATA_COUNT_MAP_PACKET = PacketCodec.of(
             (value, buf) -> {
                 buf.writeInt(value.size());

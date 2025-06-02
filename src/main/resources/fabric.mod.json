@@ -35,6 +35,9 @@
 		"java": ">=21",
 		"fabric-api": "*"
 	},
+	"recommends": {
+		"remote_storage": "${version}"
+	},
 	"suggests": {
 		"another-mod": "*"
 	}
