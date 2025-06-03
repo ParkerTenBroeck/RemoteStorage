@@ -4,15 +4,19 @@ import com.parkertenbroeck.remotestorage.packets.c2s.RemoteStorageActionC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.slot.ArmorSlot;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.Identifier;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -87,28 +91,70 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
         this.system = system;
 
-        playerInventorySize = playerInventory.getMainStacks().size();
+        playerInventorySize = populatePlayerInv(playerInventory);
         this.player = (ServerPlayerEntity) player;
         fakeInventory = null;
-
-        this.addPlayerSlots(playerInventory, 9, 132);
     }
 
     public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C s2c) {
         super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
 
         this.player = null;
-        playerInventorySize = playerInventory.getMainStacks().size();
-        this.addPlayerSlots(playerInventory, 9, 132);
+        playerInventorySize = populatePlayerInv(playerInventory);
 
         this.fakeInventory = new RSInventory(height*width);
         fakeInventory.onOpen(playerInventory.player);
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 9 + x * 18, 18 + y * 18));
+                this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 8 + x * 18, 20 + y * 18));
             }
         }
+    }
+
+    private int populatePlayerInv(PlayerInventory playerInventory){
+        this.addPlayerSlots(playerInventory, 8, 201);
+        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
+                EquipmentSlot.HEAD,
+                EquipmentSlot.HEAD.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6,
+                PlayerScreenHandler.EMPTY_HELMET_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
+                EquipmentSlot.CHEST,
+                EquipmentSlot.CHEST.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18,
+                PlayerScreenHandler.EMPTY_CHESTPLATE_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
+                EquipmentSlot.LEGS,
+                EquipmentSlot.LEGS.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18*2,
+                PlayerScreenHandler.EMPTY_LEGGINGS_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
+                EquipmentSlot.FEET,
+                EquipmentSlot.FEET.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18*3,
+                PlayerScreenHandler.EMPTY_BOOTS_SLOT_TEXTURE
+        ));
+        this.addSlot(new Slot(playerInventory, PlayerInventory.OFF_HAND_SLOT, 204, 89){
+            @Override
+            public void setStack(ItemStack stack, ItemStack previousStack) {
+                playerInventory.player.onEquipStack(EquipmentSlot.OFFHAND, previousStack, stack);
+                super.setStack(stack, previousStack);
+            }
+
+            @Override
+            public Identifier getBackgroundSprite() {
+                return PlayerScreenHandler.EMPTY_OFF_HAND_SLOT_TEXTURE;
+            }
+        });
+        return playerInventory.size();
     }
 
     public void serverTick(){

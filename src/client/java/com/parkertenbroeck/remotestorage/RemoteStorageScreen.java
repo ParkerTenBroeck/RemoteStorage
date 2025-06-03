@@ -35,17 +35,22 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
 
     public RemoteStorageScreen(RemoteStorageScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
-        this.backgroundHeight = 214;
-        this.backgroundWidth = 195;
+        this.backgroundWidth = 227;
+        this.backgroundHeight = 283;
     }
 
     @Override
     protected void init() {
         super.init();
         // Center the title
-        titleX = (backgroundWidth - textRenderer.getWidth(title)) / 2;
+        titleX = 6;
+        titleY = 6;
 
-        this.searchField = new TextFieldWidget(this.textRenderer, this.x+82, this.y+6, 80, 9, Text.of("meow!"));
+        // Center inventory text
+        playerInventoryTitleX = 6;
+        playerInventoryTitleY = 190;
+
+        this.searchField = new TextFieldWidget(this.textRenderer, this.x+80, this.y+6, 80, 9, Text.of("meow!"));
         this.searchField.setMaxLength(50);
         this.searchField.setDrawsBackground(false);
         this.searchField.setVisible(false);

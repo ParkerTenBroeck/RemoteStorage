@@ -121,18 +121,19 @@ public class RemoteStorage implements ModInitializer {
 	}
 
 	public void openRemoteStorageScreen(ServerPlayerEntity player){
+		var system = RemoteStorageSavedState.get(player);
 		player.openHandledScreen(
 				new ExtendedScreenHandlerFactory<>(){
 					OpenRemoteStorageS2C packet;
 					@Override
 					public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity p) {
 						packet = new OpenRemoteStorageS2C(syncId, getDisplayName());
-						return new RemoteStorageScreenHandler(syncId, playerInventory, RemoteStorageSavedState.get(player), p);
+						return new RemoteStorageScreenHandler(syncId, playerInventory, system, p);
 					}
 
 					@Override
 					public Text getDisplayName() {
-						return Text.empty();
+						return Text.of(system.name);
 					}
 
 					@Override

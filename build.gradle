@@ -28,6 +28,8 @@ loom {
 		}
 	}
 
+	accessWidenerPath = file("src/main/resources/remote_storage.accesswidener")
+
 }
 
 dependencies {
