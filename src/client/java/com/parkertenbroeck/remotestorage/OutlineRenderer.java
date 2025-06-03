@@ -14,6 +14,7 @@ import net.minecraft.client.gl.UniformType;
 import net.minecraft.client.render.*;
 import net.minecraft.client.render.debug.DebugRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -69,8 +70,14 @@ public class OutlineRenderer {
 
     public static synchronized void render(WorldRenderContext context, StorageSystemPositionsS2C system) {
         var target = targetBlock();
+        var inv = MinecraftClient.getInstance().player.clientWorld.getBlockEntity(target) instanceof Inventory;
+        if(inv){
+            DebugRenderer.drawBox(context.matrixStack(), context.consumers(), target, 0.0f, 1.0f, 1.0f, 1.0f, 0.5f);
+        }
+
+
         var world = MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue();
-        var members = system.updates().stream()
+        var members = system.members().stream()
                 .filter(p -> getManhattanDistance(p.pos().pos(), context.camera().getPos())<80.0)
                 .filter(p -> p.pos().world().equals(world))
                 .toList();
@@ -80,10 +87,6 @@ public class OutlineRenderer {
         }
 
         for(var member : members){
-            if(member.pos().pos().equals(target)) {
-                DebugRenderer.drawBox(context.matrixStack(), context.consumers(), target, 0.0f, 1.0f, 1.0f, 1.0f, 0.5f);
-            }
-
             drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.parent()==null?1.0f:0.0f, 1.0f);
 
             if(member.parent()!=null){

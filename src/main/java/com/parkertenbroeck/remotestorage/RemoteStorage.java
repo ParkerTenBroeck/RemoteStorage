@@ -1,9 +1,6 @@
 package com.parkertenbroeck.remotestorage;
 
-import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
-import com.parkertenbroeck.remotestorage.packets.c2s.LinkRemoteStorageMemberC2S;
-import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
-import com.parkertenbroeck.remotestorage.packets.c2s.RemoteStorageActionC2S;
+import com.parkertenbroeck.remotestorage.packets.c2s.*;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
@@ -44,6 +41,7 @@ public class RemoteStorage implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(AddToRemoteStorageC2S.ID, AddToRemoteStorageC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(LinkRemoteStorageMemberC2S.ID, LinkRemoteStorageMemberC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoteStorageActionC2S.ID, RemoteStorageActionC2S.CODEC);
+		PayloadTypeRegistry.playC2S().register(RemoveFromRemoteStorageC2S.ID, RemoveFromRemoteStorageC2S.CODEC);
 
 
 //      breaks when vanilla clients or clients without this mod join so we send our own packet
@@ -71,8 +69,15 @@ public class RemoteStorage implements ModInitializer {
 				context.player().sendMessage(Text.of("Cannot link to self"));
 				return;
 			}
+
 			var child = StorageSystem.Position.of(context.player(), payload.child());
-			var parent = StorageSystem.Position.of(context.player(), payload.parent());
+			if(payload.parent().isEmpty()){
+				var c = system.members.get(child);
+				if(c!=null)c.unlink();
+				context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+				return;
+			}
+			var parent = StorageSystem.Position.of(context.player(), payload.parent().get());
 			if(!system.members.containsKey(child)){
 				context.player().sendMessage(Text.of("Child is not a member of the system"));
 				return;
@@ -83,6 +88,14 @@ public class RemoteStorage implements ModInitializer {
 			}
 			system.members.get(child).linkTo(parent);
 			context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(RemoveFromRemoteStorageC2S.ID, (payload, context) -> {
+			var system = RemoteStorageSavedState.get(context.player());
+			var removed =system.members.remove(StorageSystem.Position.of(context.player(), payload.blockPos()));
+			if(removed != null){
+				context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+			}
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(AddToRemoteStorageC2S.ID, (payload, context) -> {

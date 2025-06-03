@@ -5,12 +5,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.component.Component;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.MinecraftServer;
@@ -18,10 +18,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class StorageSystem {
@@ -40,7 +37,7 @@ public class StorageSystem {
         this.name = name;
     }
 
-    public static final int MAX_GROUP_LINKED_RECURSION = 5;
+    public static final int MAX_LINKED_LENGTH = 5;
 
     public StorageSystemPositionsS2C getPositions() {
         return new StorageSystemPositionsS2C(
@@ -68,8 +65,8 @@ public class StorageSystem {
             return world.getBlockEntity(this.pos);
         }
 
-        public static Position of(ServerPlayerEntity player, BlockPos pos){
-            return new Position(pos, player.getServerWorld().getRegistryKey().getValue());
+        public static Position of(PlayerEntity player, BlockPos pos){
+            return new Position(pos, player.getWorld().getRegistryKey().getValue());
         }
     }
 
@@ -139,6 +136,29 @@ public class StorageSystem {
         public void linkTo(Position pos){
             this.group = null;
             this.linked = pos;
+
+            var encountered = new HashSet<Position>();
+            int i = 0;
+            var current = this;
+            encountered.add(current.pos);
+            while(current.linked!=null){
+                if(encountered.contains(current.linked)){
+                    current.linked = null;
+                    return;
+                }
+                encountered.add(current.linked);
+                current = members.get(current.linked);
+                if(current==null)break;
+                if(i>=MAX_LINKED_LENGTH){
+                    linked = null;
+                    break;
+                }
+                i++;
+            }
+        }
+
+        public void unlink() {
+            linked = null;
         }
 
         public boolean canInsertItem(ItemData item){
@@ -156,7 +176,7 @@ public class StorageSystem {
 
         public Group getGroup(){
             var linked = this;
-            for(int i = 0; linked.group==null&&i<MAX_GROUP_LINKED_RECURSION; i ++){
+            for(int i = 0; linked.group==null&&i< MAX_LINKED_LENGTH; i ++){
                 if(linked.group!=null)return linked.group;
                 if(linked.linked==null) return new Group();
                 linked = members.get(linked.linked);
@@ -164,6 +184,8 @@ public class StorageSystem {
             }
             return new Group();
         }
+
+
     }
     public enum ListKind {
         Blacklist,

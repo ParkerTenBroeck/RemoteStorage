@@ -3,6 +3,7 @@ package com.parkertenbroeck.remotestorage;
 import com.parkertenbroeck.remotestorage.packets.c2s.AddToRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.LinkRemoteStorageMemberC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
+import com.parkertenbroeck.remotestorage.packets.c2s.RemoveFromRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
@@ -15,6 +16,9 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.ChestBlock;
+import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.option.KeyBinding;
@@ -24,9 +28,11 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.parkertenbroeck.remotestorage.RemoteStorage.MOD_ID;
 import static com.parkertenbroeck.remotestorage.RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE;
@@ -77,15 +83,20 @@ public class RemoteStorageClient implements ClientModInitializer {
 				if(client.crosshairTarget==null)break outer;
 				if(client.crosshairTarget.getType() == HitResult.Type.BLOCK){
 					var pos = ((BlockHitResult)client.crosshairTarget).getBlockPos();
-					if(client.player.isSneaking()){
+					if(shiftHeld(client)){
 						linkTarget = pos;
 					}else{
-						ClientPlayNetworking.send(new AddToRemoteStorageC2S(pos));
+						var position = StorageSystem.Position.of(client.player, pos);
+						if(system.members().stream().noneMatch(m -> m.pos().equals(position)))
+							addBlock(client.world, pos);
+						else
+							autoLink(client.world, pos);
 						if(linkTarget!=null){
-							ClientPlayNetworking.send(new LinkRemoteStorageMemberC2S(pos, linkTarget));
+							ClientPlayNetworking.send(new LinkRemoteStorageMemberC2S(pos, Optional.of(linkTarget)));
+
 						}
 					}
-				}else if(client.player.isSneaking()){
+				}else if(shiftHeld(client)){
 					linkTarget = null;
 				}
 			}
@@ -96,6 +107,11 @@ public class RemoteStorageClient implements ClientModInitializer {
 				if(client.crosshairTarget==null)break outer;
 				if(client.crosshairTarget.getType() == HitResult.Type.BLOCK){
 					var pos = ((BlockHitResult)client.crosshairTarget).getBlockPos();
+					if(ctrlHeld(client)){
+						ClientPlayNetworking.send(new RemoveFromRemoteStorageC2S(pos));
+					}else{
+						ClientPlayNetworking.send(new LinkRemoteStorageMemberC2S(pos, Optional.empty()));
+					}
 				}
 			}
 
@@ -134,5 +150,33 @@ public class RemoteStorageClient implements ClientModInitializer {
 				RemoteStorage.LOGGER.warn("Received remote storage contents packet that doesn't match sync ID");
 			}
 		});
+	}
+
+	public static boolean shiftHeld(MinecraftClient client){
+		return InputUtil.isKeyPressed(client.getWindow().getHandle(), InputUtil.GLFW_KEY_LEFT_SHIFT);
+	}
+
+	public static boolean ctrlHeld(MinecraftClient client){
+		return InputUtil.isKeyPressed(client.getWindow().getHandle(), InputUtil.GLFW_KEY_LEFT_CONTROL);
+	}
+
+	public static void addBlock(World world, BlockPos pos){
+		ClientPlayNetworking.send(new AddToRemoteStorageC2S(pos));
+		if(world.getBlockState(pos).getBlock() == Blocks.CHEST){
+			if(world.getBlockState(pos).get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE){
+				var other = pos.offset(ChestBlock.getFacing(world.getBlockState(pos)));
+				ClientPlayNetworking.send(new AddToRemoteStorageC2S(other));
+			}
+		}
+		autoLink(world, pos);
+	}
+
+	public static void autoLink(World world, BlockPos pos){
+		if(world.getBlockState(pos).getBlock() == Blocks.CHEST){
+			if(world.getBlockState(pos).get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE){
+				var other = pos.offset(ChestBlock.getFacing(world.getBlockState(pos)));
+				ClientPlayNetworking.send(new LinkRemoteStorageMemberC2S(other, Optional.of(pos)));
+			}
+		}
 	}
 }

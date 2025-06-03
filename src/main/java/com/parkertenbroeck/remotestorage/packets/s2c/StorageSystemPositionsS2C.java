@@ -10,11 +10,11 @@ import net.minecraft.network.packet.CustomPayload;
 import java.util.List;
 import java.util.Optional;
 
-public record StorageSystemPositionsS2C(String name, List<Member> updates) implements CustomPayload {
+public record StorageSystemPositionsS2C(String name, List<Member> members) implements CustomPayload {
     public static final Id<StorageSystemPositionsS2C> ID = NetworkingUtils.createId(StorageSystemPositionsS2C.class);
     public static final PacketCodec<RegistryByteBuf, StorageSystemPositionsS2C> CODEC = PacketCodec.tuple(
             PacketCodecs.STRING, StorageSystemPositionsS2C::name,
-            Member.PACKET_CODEC.collect(PacketCodecs.toList()), StorageSystemPositionsS2C::updates,
+            Member.PACKET_CODEC.collect(PacketCodecs.toList()), StorageSystemPositionsS2C::members,
             StorageSystemPositionsS2C::new
     );
     @Override
