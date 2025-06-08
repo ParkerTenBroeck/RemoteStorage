@@ -1,5 +1,6 @@
 package com.parkertenbroeck.remotestorage;
 
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
@@ -18,6 +19,10 @@ public record ItemData(ItemStack item) {
             ItemStack.OPTIONAL_PACKET_CODEC.encode(buf, data.item);
         }
     };
+
+    public ItemData(Item item){
+        this(new ItemStack(item));
+    }
 
     public ItemData(ItemStack item){
         this.item = item.copyWithCount(1);

@@ -6,9 +6,7 @@ import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
 import net.fabricmc.api.ModInitializer;
 
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -17,10 +15,13 @@ import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.Registry;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,9 +44,8 @@ public class RemoteStorage implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(RemoteStorageActionC2S.ID, RemoteStorageActionC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoveFromRemoteStorageC2S.ID, RemoveFromRemoteStorageC2S.CODEC);
 
-
 //      breaks when vanilla clients or clients without this mod join so we send our own packet
-//		Registry.register(Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "meow"), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
+		Registry.register(Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "meow"), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			for(var player : server.getPlayerManager().getPlayerList()){
@@ -128,7 +128,7 @@ public class RemoteStorage implements ModInitializer {
 					@Override
 					public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity p) {
 						packet = new OpenRemoteStorageS2C(syncId, getDisplayName());
-						return new RemoteStorageScreenHandler(syncId, playerInventory, system, p);
+						return new RemoteStorageScreenHandler(syncId, playerInventory, system);
 					}
 
 					@Override

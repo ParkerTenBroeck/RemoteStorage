@@ -7,30 +7,39 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.inventory.CraftingResultInventory;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.RecipeInputInventory;
 import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.screen.PlayerScreenHandler;
-import net.minecraft.screen.ScreenHandler;
+import net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket;
+import net.minecraft.recipe.*;
+import net.minecraft.recipe.book.RecipeBookType;
+import net.minecraft.recipe.input.CraftingRecipeInput;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.screen.*;
 import net.minecraft.screen.slot.ArmorSlot;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 
-public class RemoteStorageScreenHandler extends ScreenHandler {
+public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
     public final RSInventory fakeInventory;
-    private final ServerPlayerEntity player;
+    private final PlayerEntity player;
     private StorageSystem system;
 
-    private final int width = 9;
-    private final int height = 6;
+    private final int storageWidth = 9;
+    private final int storageHeight = 6;
     public final int playerInventorySize;
+    public final int craftingGridSize = 3*3+1;//3x3 and output slot
+    public final int fakeInvStart;
 
     public int storageRevision = 0;
 
@@ -54,6 +63,28 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             }
         }
     }
+
+    @Override
+    public Slot getOutputSlot() {
+        return this.slots.get(0);
+    }
+
+    @Override
+    public List<Slot> getInputSlots() {
+        return  this.slots.subList(1, 10);
+    }
+
+    @Override
+    protected PlayerEntity getPlayer() {
+        return player;
+    }
+
+    @Override
+    public RecipeBookType getCategory() {
+        return RecipeBookType.CRAFTING;
+    }
+
+
 
     static class RemoteStorageSlot extends Slot{
         public RemoteStorageSlot(Inventory inventory, int index, int x, int y) {
@@ -87,33 +118,163 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         }
     }
 
-    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, StorageSystem system, PlayerEntity player) {
-        super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
-        this.system = system;
-
-        playerInventorySize = populatePlayerInv(playerInventory);
-        this.player = (ServerPlayerEntity) player;
-        fakeInventory = null;
+    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, StorageSystem system) {
+        this(syncId, playerInventory, system, null);
     }
 
-    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C s2c) {
-        super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId);
+    public RemoteStorageScreenHandler(int syncId, PlayerInventory playerInventory, OpenRemoteStorageS2C init) {
+        this(syncId, playerInventory, null, init);
+    }
 
-        this.player = null;
-        playerInventorySize = populatePlayerInv(playerInventory);
+    private RemoteStorageScreenHandler(int syncId, PlayerInventory inv, @Nullable StorageSystem system, @Nullable OpenRemoteStorageS2C init){
+        super(RemoteStorage.REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, syncId, 3, 3);
 
-        this.fakeInventory = new RSInventory(height*width);
-        fakeInventory.onOpen(playerInventory.player);
+        this.system = system;
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * width, 8 + x * 18, 20 + y * 18));
+        this.player = inv.player;
+        playerInventorySize = populateSlots(inv);
+        fakeInvStart = playerInventorySize+craftingGridSize;
+
+        if(system==null){
+            this.fakeInventory = new RSInventory(storageHeight * storageWidth);
+            fakeInventory.onOpen(inv.player);
+
+            for (int y = 0; y < storageHeight; y++) {
+                for (int x = 0; x < storageWidth; x++) {
+                    this.addSlot(new RemoteStorageSlot(fakeInventory, x + y * storageWidth, 8 + x * 18, 20 + y * 18));
+                }
             }
+        }else{
+            fakeInventory = null;
         }
     }
 
-    private int populatePlayerInv(PlayerInventory playerInventory){
-        this.addPlayerSlots(playerInventory, 8, 201);
+    protected static void updateResult(
+            ScreenHandler handler,
+            ServerWorld world,
+            PlayerEntity player,
+            RecipeInputInventory craftingInventory,
+            CraftingResultInventory resultInventory,
+            @Nullable RecipeEntry<CraftingRecipe> recipe
+    ) {
+        CraftingRecipeInput craftingRecipeInput = craftingInventory.createRecipeInput();
+        ServerPlayerEntity serverPlayerEntity = (ServerPlayerEntity)player;
+        ItemStack itemStack = ItemStack.EMPTY;
+        Optional<RecipeEntry<CraftingRecipe>> optional = world.getServer().getRecipeManager().getFirstMatch(RecipeType.CRAFTING, craftingRecipeInput, world, recipe);
+        if (optional.isPresent()) {
+            RecipeEntry<CraftingRecipe> recipeEntry = (RecipeEntry<CraftingRecipe>)optional.get();
+            CraftingRecipe craftingRecipe = recipeEntry.value();
+            if (resultInventory.shouldCraftRecipe(serverPlayerEntity, recipeEntry)) {
+                ItemStack itemStack2 = craftingRecipe.craft(craftingRecipeInput, world.getRegistryManager());
+                if (itemStack2.isItemEnabled(world.getEnabledFeatures())) {
+                    itemStack = itemStack2;
+                }
+            }
+        }
+
+        resultInventory.setStack(0, itemStack);
+        handler.setReceivedStack(0, itemStack);
+        serverPlayerEntity.networkHandler.sendPacket(new ScreenHandlerSlotUpdateS2CPacket(handler.syncId, handler.nextRevision(), 0, itemStack));
+    }
+
+    private static int clampToMaxCount(int count, List<RegistryEntry<Item>> entries) {
+        for (RegistryEntry<Item> registryEntry : entries) {
+            count = Math.min(count, registryEntry.value().getMaxCount());
+        }
+
+        return count;
+    }
+
+    @Override
+    public PostFillAction fillInputSlots(boolean craftAll, boolean creative, RecipeEntry<?> recipe, ServerWorld world, PlayerInventory inventory) {
+        RecipeEntry<CraftingRecipe> recipeEntry = (RecipeEntry<CraftingRecipe>)recipe;
+        this.onInputSlotFillStart();
+
+
+        try{
+            RecipeFinder recipeFinder = new RecipeFinder();
+            player.getInventory().getMainStacks().forEach(recipeFinder::addInputIfUsable);
+            currentMap.entrySet().stream().map(e -> e.getKey().withCount(e.getValue())).forEach(recipeFinder::addInputIfUsable);
+
+            if(!recipeEntry.value().matches(this.craftingInventory.createRecipeInput(), getPlayer().getWorld())){
+                craftingInventory.getHeldStacks().forEach(recipeFinder::addInputIfUsable);
+                for(var slot : getInputSlots()){
+                    insertIntoStorage(slot.getStack());
+                    this.insertItem(slot.getStack(), 10, 45, true);
+                    if(!slot.getStack().isEmpty())
+                        return PostFillAction.NOTHING;
+                }
+            }
+
+            List<RegistryEntry<Item>> list = new ArrayList<>();
+            var pre_count = recipeFinder.countCrafts(recipe.value(), null);
+            if(!craftAll) pre_count = Math.min(1, pre_count);
+            if(!recipeFinder.isCraftable(recipe.value(), pre_count, list::add)){
+                return AbstractRecipeScreenHandler.PostFillAction.PLACE_GHOST_RECIPE;
+            }
+            var count = clampToMaxCount(pre_count, list);
+            if(!recipeFinder.isCraftable(recipe.value(), count, list::add)){
+                return AbstractRecipeScreenHandler.PostFillAction.PLACE_GHOST_RECIPE;
+            }
+
+
+            RecipeGridAligner.alignRecipeToGrid(
+                    this.getWidth(), this.getHeight(), recipe.value(), recipe.value().getIngredientPlacement().getPlacementSlots(), (slotx, index, x, y) -> {
+                        if (slotx == -1) return;
+
+                        Slot slot = getInputSlots().get(index);
+                        RegistryEntry<Item> entry = list.get(slotx);
+
+
+                        var takeAmount = Math.min(count, slot.getStack().isEmpty()?entry.value().getMaxCount():slot.getStack().getMaxCount()-slot.getStack().getCount());
+                        {
+                            int slot_index;
+                            while(takeAmount!=0&&(slot_index = player.getInventory().getMatchingSlot(entry, slot.getStack())) != -1){
+                                var stack = player.getInventory().getStack(slot_index);
+                                var amount = Math.min(takeAmount, stack.getCount());
+                                slot.setStack(stack.copyWithCount(amount+slot.getStack().getCount()));
+                                stack.setCount(stack.getCount()-amount);
+                                takeAmount -= amount;
+                            }
+                        }
+                        if(takeAmount>0){
+                            var data = slot.getStack().isEmpty()?new ItemData(entry.value()):new ItemData(slot.getStack());
+                            var got = getFromStorage(data, takeAmount);
+                            got.increment(slot.getStack().getCount());
+                            slot.setStack(got);
+                        }
+                    }
+            );
+            return PostFillAction.NOTHING;
+        }finally {
+            this.onInputSlotFillFinish(world, (RecipeEntry<CraftingRecipe>)recipe);
+        }
+    }
+
+    @Override
+    public void onInputSlotFillFinish(ServerWorld world, RecipeEntry<CraftingRecipe> recipe) {
+        updateResult(this, world, this.player, this.craftingInventory, this.craftingResultInventory, recipe);
+    }
+
+    @Override
+    public void onContentChanged(Inventory inventory) {
+        if(this.player==null)return;
+        if (this.player.getWorld() instanceof ServerWorld serverWorld) {
+            updateResult(this, serverWorld, this.player, this.craftingInventory, this.craftingResultInventory, null);
+        }
+    }
+
+    @Override
+    public void populateRecipeFinder(RecipeFinder finder) {
+        super.populateRecipeFinder(finder);
+        currentMap.entrySet().stream().map(e -> e.getKey().withCount(e.getValue())).forEach(finder::addInputIfUsable);
+    }
+
+    private int populateSlots(PlayerInventory playerInventory){
+
+        this.addResultSlot(playerInventory.player, 134, 132+18);
+        this.addInputSlots(26, 132);
+
         this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
                 EquipmentSlot.HEAD,
                 EquipmentSlot.HEAD.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
@@ -142,6 +303,9 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
                 6+18*3,
                 PlayerScreenHandler.EMPTY_BOOTS_SLOT_TEXTURE
         ));
+
+        this.addPlayerSlots(playerInventory, 8, 201);
+
         this.addSlot(new Slot(playerInventory, PlayerInventory.OFF_HAND_SLOT, 204, 89){
             @Override
             public void setStack(ItemStack stack, ItemStack previousStack) {
@@ -158,11 +322,11 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
     }
 
     public void serverTick(){
-        if(isServer()) {
+        if(player instanceof ServerPlayerEntity p) {
             lastMap.clear();
 
             for (var member : system.unorderedMembers()) {
-                if (member.pos.blockEntityAt(player.server) instanceof Inventory i) {
+                if (member.pos.blockEntityAt(p.server) instanceof Inventory i) {
                     for(var stack : i){
                         if (stack.isEmpty()) continue;
                         lastMap.compute(new ItemData(stack), (ignored, count) -> (count==null?0:count)+stack.getCount());
@@ -185,31 +349,25 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
             }
 
             if(!difference.isEmpty())
-                ServerPlayNetworking.send(player, new RemoteStorageContentsDeltaS2C(syncId, storageRevision, difference));
+                ServerPlayNetworking.send(p, new RemoteStorageContentsDeltaS2C(syncId, storageRevision, difference));
         }
     }
 
     public void receiveContentsDelta(RemoteStorageContentsDeltaS2C contents){
-        System.out.println(contents);
         if(contents.revision()!=storageRevision){
             currentMap = contents.map();
             storageRevision = contents.revision();
+            player.getInventory().markDirty();
         }else{
             contents.map().forEach(this::setLocalItemCount);
+            if(!contents.map().isEmpty())
+                player.getInventory().markDirty();
         }
     }
 
     @Override
     public boolean canUse(PlayerEntity player) {
         return true;
-    }
-
-    private boolean isClient(){
-        return system==null;
-    }
-
-    private boolean isServer(){
-        return system!=null;
     }
 
     @Override
@@ -231,69 +389,62 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         if(!getCursorStack().isEmpty()&&!item.equals(getCursorStack())) return;
 
         var stackSize = item.stackSize();
-        int capped = Math.min(amount, stackSize-getCursorStack().getCount());
-        if(capped<=0)return;
-        if(isServer()){
-            var got = system.getFromStorage(player, item, capped);
-            if(got.getCount()!=capped)makeDirty(item);
-            capped = got.getCount();
-        }else{
-            modifyLocalItemCount(item, -capped);
-        }
+        amount = Math.min(amount, stackSize-getCursorStack().getCount());
+        if(amount<=0)return;
+        var got = getFromStorage(item, amount);
+        if(got.getCount()!=amount)makeDirty(item);
         if(getCursorStack().isEmpty())
-            setCursorStack(item.withCount(capped));
+            setCursorStack(got);
         else
-            getCursorStack().setCount(getCursorStack().getCount()+capped);
+            getCursorStack().setCount(getCursorStack().getCount()+got.getCount());
     }
 
     void cursorIntoStorage(int amount){
         if(getCursorStack().isEmpty())return;
 
-        int capped = Math.min(getCursorStack().getCount(), amount);
-        var item = new ItemData(getCursorStack());
-        if(isServer()){
-            var old = getCursorStack().getCount();
-            system.insertIntoStorage(player, getCursorStack(), capped);
-            var diff = old-getCursorStack().getCount();
-            if(diff!=capped) makeDirty(item);
-        }else{
-            modifyLocalItemCount(item, capped);
-            getCursorStack().setCount(getCursorStack().getCount()-capped);
-        }
+        amount = Math.min(getCursorStack().getCount(), amount);
+        var old = getCursorStack().getCount();
+        insertIntoStorage(getCursorStack(), amount);
+        if(old-getCursorStack().getCount()!=amount)makeDirty(new ItemData(getCursorStack()));
     }
 
     void quickMoveOut(ItemData item, int amount){
-        if(isServer()) {
-            //TODO calculate max transfer that player inventory can accept
-            amount =  Math.min(amount, item.stackSize());
-
-            var transferred = system.getFromStorage(player, item, amount);
-
-            this.insertItem(transferred, 0, playerInventorySize, true);
-
-            if(transferred.getCount()!=0){
-                RemoteStorage.LOGGER.warn("Not all items transferred!");
-                system.insertIntoStorage(player, transferred);
-                if(transferred.getCount()!=0){
-                    this.setCursorStack(transferred);
-                    RemoteStorage.LOGGER.warn("Not all items transferred BACK!!!!!");
-                }
-                makeDirty(item);
-            }
-        }else {
-            var count = currentMap.get(item);
-            if(count==null)count=0;
-            amount = Math.min(count, Math.min(amount, item.stackSize()));
-            count -= amount;
-            if(count<=0)currentMap.remove(item);
-            else currentMap.put(item, count);
-
-            this.insertItem(item.withCount(amount), 0, playerInventorySize, true);
+        //TODO calculate max transfer that player inventory can accept
+        amount =  Math.min(amount, item.stackSize());
+        var transferred = getFromStorage(item, amount);
+        this.insertItem(transferred, 10, 45, true);
+        if(transferred.getCount()!=0){
+            this.setCursorStack(transferred);
+            makeDirty(item);
         }
     }
 
     private void makeDirty(ItemData item){
-        currentMap.put(item, -1);//ensures this gets updated
+        if(player instanceof ServerPlayerEntity)
+            currentMap.put(item, -1);//ensures this gets updated
+    }
+
+    private ItemStack getFromStorage(ItemData item, int amount){
+        if(player instanceof ServerPlayerEntity p){
+            return system.getFromStorage(p, item, amount);
+        }else{
+            amount = Math.min(amount, currentMap.getOrDefault(item, 0));
+            modifyLocalItemCount(item, -amount);
+            return item.withCount(amount);
+        }
+    }
+
+    private void insertIntoStorage(ItemStack stack){
+        insertIntoStorage(stack, stack.getCount());
+    }
+
+    private void insertIntoStorage(ItemStack stack, int amount){
+        if(player instanceof ServerPlayerEntity p){
+            system.insertIntoStorage(p, stack, amount);
+        }else{
+            modifyLocalItemCount(new ItemData(stack), amount);
+            stack.setCount(stack.getCount()-amount); // we can't check if it will succeed on client so we assume it will work
+        }
     }
 
     @Override
@@ -301,27 +452,44 @@ public class RemoteStorageScreenHandler extends ScreenHandler {
         Slot slot = this.slots.get(slot_index);
         if(!slot.hasStack()) return ItemStack.EMPTY;
 
-        if(slot_index >= playerInventorySize){
+        if(slot_index >= fakeInvStart){
             RemoteStorage.LOGGER.warn("This should not be ran");
+            return ItemStack.EMPTY;
         }else{
-            // player inv -> storage system
-            if(isClient()){
-                modifyLocalItemCount(new ItemData(slot.getStack()), slot.getStack().getCount());
-                slot.setStack(ItemStack.EMPTY); // we can't check if it will succeed on client so we assume it will work
-            }else{
-                system.insertIntoStorage(this.player, slot.getStack());
-                if(!slot.getStack().isEmpty()) {
-                    slot.markDirty();
-                    makeDirty(new ItemData(slot.getStack()));
-                }
-            }
-        }
+            var stack = slot.getStack();
+            var orig = slot.getStack().copy();
 
-        return ItemStack.EMPTY;
+            if(slot_index==0){
+                this.insertItem(stack, 10, 45, true);
+            }
+            insertIntoStorage(stack);
+            if(!stack.isEmpty()) {
+                slot.markDirty();
+                makeDirty(new ItemData(stack));
+            }
+            slot.onQuickTransfer(stack, orig);
+
+            if (orig.getCount() == stack.getCount()) {
+                return ItemStack.EMPTY;
+            }
+            slot.onTakeItem(player, stack);
+            if (slot_index == 0) {
+                player.dropItem(stack, false);
+                return orig;
+            }
+            return ItemStack.EMPTY;
+        }
     }
 
     @Override
     public void onClosed(PlayerEntity player) {
         super.onClosed(player);
+        this.craftingResultInventory.clear();
+        if (!player.getWorld().isClient) {
+            for(var stack : this.craftingInventory.createRecipeInput().getStacks()){
+                insertIntoStorage(stack);
+            }
+            this.dropInventory(player, this.craftingInventory);
+        }
     }
 }
