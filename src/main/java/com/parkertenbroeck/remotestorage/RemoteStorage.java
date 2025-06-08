@@ -15,13 +15,10 @@ import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +42,7 @@ public class RemoteStorage implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(RemoveFromRemoteStorageC2S.ID, RemoveFromRemoteStorageC2S.CODEC);
 
 //      breaks when vanilla clients or clients without this mod join so we send our own packet
-		Registry.register(Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "meow"), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
+//		Registry.register(Registries.SCREEN_HANDLER, NetworkingUtils.createIdentifier(RemoteStorageScreenHandler.class), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			for(var player : server.getPlayerManager().getPlayerList()){

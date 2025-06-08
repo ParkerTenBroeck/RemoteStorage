@@ -1,7 +1,7 @@
 package com.parkertenbroeck.remotestorage.packets.s2c;
 
 import com.parkertenbroeck.remotestorage.StorageSystem;
-import com.parkertenbroeck.remotestorage.packets.NetworkingUtils;
+import com.parkertenbroeck.remotestorage.Utils;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public record StorageSystemPositionsS2C(String name, List<Member> members) implements CustomPayload {
-    public static final Id<StorageSystemPositionsS2C> ID = NetworkingUtils.createId(StorageSystemPositionsS2C.class);
+    public static final Id<StorageSystemPositionsS2C> ID = Utils.createId(StorageSystemPositionsS2C.class);
     public static final PacketCodec<RegistryByteBuf, StorageSystemPositionsS2C> CODEC = PacketCodec.tuple(
             PacketCodecs.STRING, StorageSystemPositionsS2C::name,
             Member.PACKET_CODEC.collect(PacketCodecs.toList()), StorageSystemPositionsS2C::members,

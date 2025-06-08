@@ -1,6 +1,6 @@
 package com.parkertenbroeck.remotestorage.packets.s2c;
 
-import com.parkertenbroeck.remotestorage.packets.NetworkingUtils;
+import com.parkertenbroeck.remotestorage.Utils;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -10,7 +10,7 @@ import net.minecraft.text.TextCodecs;
 
 
 public record OpenRemoteStorageS2C(int syncId, Text title) implements CustomPayload {
-    public static final Id<OpenRemoteStorageS2C> ID = NetworkingUtils.createId(OpenRemoteStorageS2C.class);
+    public static final Id<OpenRemoteStorageS2C> ID = Utils.createId(OpenRemoteStorageS2C.class);
     public static final PacketCodec<RegistryByteBuf, OpenRemoteStorageS2C> CODEC = PacketCodec.tuple(
             PacketCodecs.SYNC_ID, OpenRemoteStorageS2C::syncId,
             TextCodecs.REGISTRY_PACKET_CODEC, OpenRemoteStorageS2C::title,

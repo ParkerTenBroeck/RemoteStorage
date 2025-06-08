@@ -1,15 +1,18 @@
-package com.parkertenbroeck.remotestorage.packets;
+package com.parkertenbroeck.remotestorage;
 
 
-import com.parkertenbroeck.remotestorage.RemoteStorage;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 
-public class NetworkingUtils {
+public class Utils {
 
 
     public static <T extends CustomPayload> CustomPayload.Id<T> createId(Class<T> clazz){
-        return new CustomPayload.Id<>(Identifier.of(RemoteStorage.MOD_ID, toSnakeCase(clazz.getSimpleName())));
+        return new CustomPayload.Id<>(createIdentifier(clazz));
+    }
+
+    public static <T> Identifier createIdentifier(Class<T> clazz){
+        return Identifier.of(RemoteStorage.MOD_ID, toSnakeCase(clazz.getSimpleName()));
     }
 
     public static String toSnakeCase(String str){
