@@ -4,6 +4,8 @@ import com.parkertenbroeck.remotestorage.packets.c2s.*;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.system.Position;
+import com.parkertenbroeck.remotestorage.system.RemoteStorageSavedState;
 import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -61,47 +63,38 @@ public class RemoteStorage implements ModInitializer {
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(LinkRemoteStorageMemberC2S.ID, (payload, context) -> {
-			var system = RemoteStorageSavedState.get(context.player());
-			if(payload.child().equals(payload.parent())){
-				context.player().sendMessage(Text.of("Cannot link to self"));
-				return;
-			}
-
-			var child = StorageSystem.Position.of(context.player(), payload.child());
+			var child = Position.of(context.player(), payload.child());
 			if(payload.parent().isEmpty()){
-				var c = system.members.get(child);
-				if(c!=null)c.unlink();
-				context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+				if(RemoteStorageSavedState.unlinkMember(context.player(), child)){
+					RemoteStorageSavedState.syncWithPlayer(context.player());
+				}
 				return;
 			}
-			var parent = StorageSystem.Position.of(context.player(), payload.parent().get());
-			if(!system.members.containsKey(child)){
-				context.player().sendMessage(Text.of("Child is not a member of the system"));
-				return;
-			}
-			if(!system.members.containsKey(parent)){
-				context.player().sendMessage(Text.of("Parent is not a member of the system"));
-				return;
-			}
-			system.members.get(child).linkTo(parent);
-			context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+			var parent = Position.of(context.player(), payload.parent().get());
+			switch(RemoteStorageSavedState.linkMember(context.player(), child, parent)){
+                case Success ->
+						RemoteStorageSavedState.syncWithPlayer(context.player());
+                case CannotLinkToSelf ->
+						context.player().sendMessage(Text.of("Cannot link to self"));
+                case ChildIsNotMember ->
+						context.player().sendMessage(Text.of("Child is not a member of the system"));
+                case ParentIsNotMember ->
+						context.player().sendMessage(Text.of("Parent is not a member of the system"));
+            }
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(RemoveFromRemoteStorageC2S.ID, (payload, context) -> {
-			var system = RemoteStorageSavedState.get(context.player());
-			var removed =system.members.remove(StorageSystem.Position.of(context.player(), payload.blockPos()));
-			if(removed != null){
-				context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+			if(RemoteStorageSavedState.removeMember(context.player(), Position.of(context.player(), payload.blockPos()))){
+				RemoteStorageSavedState.syncWithPlayer(context.player());
 			}
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(AddToRemoteStorageC2S.ID, (payload, context) -> {
 			var entity = context.player().getServerWorld().getBlockEntity(payload.blockPos());
 			if(entity instanceof Inventory){
-				var added = RemoteStorageSavedState.get(context.player()).add_default(payload.blockPos(), context.player().getServerWorld().getRegistryKey().getValue());
-				if(added) {
+				if(RemoteStorageSavedState.addMember(context.player(), Position.of(context.player(), payload.blockPos()))) {
 					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " added to system"));
-					context.responseSender().sendPacket(RemoteStorageSavedState.get(context.player()).getPositions());
+					RemoteStorageSavedState.syncWithPlayer(context.player());
 				}
 			}
 		});

@@ -1,19 +1,14 @@
-package com.parkertenbroeck.remotestorage;
+package com.parkertenbroeck.remotestorage.system;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.parkertenbroeck.remotestorage.ItemData;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
-import net.minecraft.block.entity.BlockEntity;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.component.Component;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -22,9 +17,10 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class StorageSystem {
-    public String name = "default";
-    public final HashMap<Position, StorageMember> members = new HashMap<>();
-    public final HashMap<String, Group> groups = new HashMap<>();
+    public String name = "Default";
+    final HashMap<Position, StorageMember> members = new HashMap<>();
+    final Int2ObjectOpenHashMap<Group> groups = new Int2ObjectOpenHashMap<>();
+    private int next_id;
 
     public static final Codec<StorageSystem> CODEC = RecordCodecBuilder.create(
         instance ->
@@ -33,8 +29,15 @@ public class StorageSystem {
             ).apply(instance, StorageSystem::new)
     );
 
+
+    public StorageSystem(){
+        next_id = 1;
+        clear();
+    }
+
     private StorageSystem(String name){
         this.name = name;
+        next_id = 1;
     }
 
     public static final int MAX_LINKED_LENGTH = 5;
@@ -47,44 +50,34 @@ public class StorageSystem {
                         .map(e -> new StorageSystemPositionsS2C.Member(
                                 e.getKey(),
                                 e.getValue().linked,
-                                0
+                                e.getValue().group
                         )).toList()
         );
     }
 
-    public record Position(BlockPos pos, Identifier world){
-        public static final PacketCodec<RegistryByteBuf, Position> PACKET_CODEC = PacketCodec.tuple(
-                BlockPos.PACKET_CODEC, Position::pos,
-                Identifier.PACKET_CODEC, Position::world,
-                Position::new
-        );
-
-        BlockEntity blockEntityAt(MinecraftServer server){
-            var world = server.getWorld(RegistryKey.of(RegistryKeys.WORLD, this.world));
-            if(world==null)return null;
-            return world.getBlockEntity(this.pos);
-        }
-
-        public static Position of(PlayerEntity player, BlockPos pos){
-            return new Position(pos, player.getWorld().getRegistryKey().getValue());
-        }
+    protected boolean remove(Position pos) {
+        return members.remove(pos) != null;
     }
 
-    public StorageSystem(){
-        clear();
-    }
-
-    public boolean add_default(BlockPos pos, Identifier world){
-        var p = new Position(pos, world);
-        if(members.containsKey(p))return false;
-        members.put(p, new StorageMember(p, groups.get(null)));
+    public boolean unlink(Position pos) {
+        var member = members.get(pos);
+        if(member==null)return false;
+        if(member.linked==null)return false;
+        member.linked = null;
         return true;
     }
 
-    public void clear() {
+
+    protected boolean addMember(Position pos){
+        if(members.containsKey(pos))return false;
+        members.put(pos, new StorageMember(pos));
+        return true;
+    }
+
+    protected void clear() {
         groups.clear();
         members.clear();
-        groups.put(null, new Group());
+        groups.put(0, new Group());
     }
 
     public Iterable<StorageMember> inputPriorityOrdered(){
@@ -122,19 +115,19 @@ public class StorageSystem {
     public final class StorageMember {
         public final Position pos;
         private Position linked;
-        private Group group;
+        private int group;
 
-        public StorageMember(Position pos, Group group) {
+        public StorageMember(Position pos) {
             this.pos = pos;
+        }
+
+        public void setGroup(int group){
+            this.linked = null;
             this.group = group;
         }
 
-        public void setGroup(){
-            this.linked = null;
-        }
-
         public void linkTo(Position pos){
-            this.group = null;
+            this.group = 0;
             this.linked = pos;
 
             var encountered = new HashSet<Position>();
@@ -157,10 +150,6 @@ public class StorageSystem {
             }
         }
 
-        public void unlink() {
-            linked = null;
-        }
-
         public boolean canInsertItem(ItemData item){
             var group = getGroup();
             for(var filter : group.list){
@@ -176,13 +165,12 @@ public class StorageSystem {
 
         public Group getGroup(){
             var linked = this;
-            for(int i = 0; linked.group==null&&i< MAX_LINKED_LENGTH; i ++){
-                if(linked.group!=null)return linked.group;
-                if(linked.linked==null) return new Group();
+            for(int i = 0; linked.linked!=null&&i< MAX_LINKED_LENGTH; i ++){
                 linked = members.get(linked.linked);
                 if(linked==null) return new Group();
             }
-            return new Group();
+            if(!groups.containsKey(linked.group))return new Group();
+            return groups.get(linked.group);
         }
 
 

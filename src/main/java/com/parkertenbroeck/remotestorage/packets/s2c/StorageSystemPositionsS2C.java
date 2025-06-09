@@ -1,6 +1,6 @@
 package com.parkertenbroeck.remotestorage.packets.s2c;
 
-import com.parkertenbroeck.remotestorage.StorageSystem;
+import com.parkertenbroeck.remotestorage.system.Position;
 import com.parkertenbroeck.remotestorage.Utils;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
@@ -22,10 +22,10 @@ public record StorageSystemPositionsS2C(String name, List<Member> members) imple
         return ID;
     }
 
-    public record Member(StorageSystem.Position pos, StorageSystem.Position parent, int group){
+    public record Member(Position pos, Position parent, int group){
         public static final PacketCodec<RegistryByteBuf, Member> PACKET_CODEC = PacketCodec.tuple(
-                StorageSystem.Position.PACKET_CODEC, Member::pos,
-                StorageSystem.Position.PACKET_CODEC.collect(PacketCodecs::optional), m -> Optional.ofNullable(m.parent),
+                Position.PACKET_CODEC, Member::pos,
+                Position.PACKET_CODEC.collect(PacketCodecs::optional), m -> Optional.ofNullable(m.parent),
                 PacketCodecs.INTEGER, Member::group,
                 (pos, parent, group) -> new Member(pos, parent.orElse(null), group)
         );

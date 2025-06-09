@@ -7,6 +7,7 @@ import com.parkertenbroeck.remotestorage.packets.c2s.RemoveFromRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.system.Position;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -86,7 +87,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 					if(shiftHeld(client)){
 						linkTarget = pos;
 					}else{
-						var position = StorageSystem.Position.of(client.player, pos);
+						var position = Position.of(client.player, pos);
 						if(system.members().stream().noneMatch(m -> m.pos().equals(position)))
 							addBlock(client.world, pos);
 						else

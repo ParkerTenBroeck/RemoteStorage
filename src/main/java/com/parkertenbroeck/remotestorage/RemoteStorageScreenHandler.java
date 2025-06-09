@@ -3,6 +3,7 @@ package com.parkertenbroeck.remotestorage;
 import com.parkertenbroeck.remotestorage.packets.c2s.RemoteStorageActionC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
+import com.parkertenbroeck.remotestorage.system.StorageSystem;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
@@ -216,7 +217,6 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
             if(!recipeFinder.isCraftable(recipe.value(), count, list::add)){
                 return AbstractRecipeScreenHandler.PostFillAction.PLACE_GHOST_RECIPE;
             }
-
 
             RecipeGridAligner.alignRecipeToGrid(
                     this.getWidth(), this.getHeight(), recipe.value(), recipe.value().getIngredientPlacement().getPlacementSlots(), (slotx, index, x, y) -> {
