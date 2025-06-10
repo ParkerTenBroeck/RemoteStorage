@@ -11,7 +11,7 @@ import net.minecraft.network.codec.PacketCodec;
  * An item + its data but without having a count
  */
 public record ItemData(ItemStack item) {
-    public static final PacketCodec<RegistryByteBuf, ItemData> ITEM_DATA_PACKET_CODEC = new PacketCodec<>() {
+    public static final PacketCodec<RegistryByteBuf, ItemData> PACKET_CODEC = new PacketCodec<>() {
         public ItemData decode(RegistryByteBuf buf) {
             return new ItemData(ItemStack.OPTIONAL_PACKET_CODEC.decode(buf));
         }

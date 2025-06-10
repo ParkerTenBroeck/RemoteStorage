@@ -12,14 +12,14 @@ public record RemoteStorageActionC2S(ItemData item, int syncId, int revision, bo
     public static final CustomPayload.Id<RemoteStorageActionC2S> ID = Utils.createId(RemoteStorageActionC2S.class);
     public static final PacketCodec<RegistryByteBuf, RemoteStorageActionC2S> CODEC = PacketCodec.of(
         (value, buf) -> {
-            ItemData.ITEM_DATA_PACKET_CODEC.encode(buf, value.item);
+            ItemData.PACKET_CODEC.encode(buf, value.item);
             PacketCodecs.SYNC_ID.encode(buf, value.syncId);
             buf.writeVarInt(value.revision)
                     .writeByte((value.isTakingFromStorage ?0b10000000:0)+value.kind)
                     .writeVarInt(value.amount)
                     .writeVarInt(value.amount);
         }, buf -> {
-            var item = ItemData.ITEM_DATA_PACKET_CODEC.decode(buf);
+            var item = ItemData.PACKET_CODEC.decode(buf);
             var syncId = PacketCodecs.SYNC_ID.decode(buf);
             var revision = buf.readVarInt();
             var rk = buf.readByte();

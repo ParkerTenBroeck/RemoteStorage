@@ -3,7 +3,15 @@ package com.parkertenbroeck.remotestorage.system;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.ItemData;
+import net.minecraft.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.ContainerComponent;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodec;
+import net.minecraft.network.codec.PacketCodecs;
 
+import java.util.List;
 import java.util.Optional;
 
 public final class StorageMember {
@@ -13,6 +21,13 @@ public final class StorageMember {
                     Codec.optionalField("linked", Position.CODEC, true).forGetter(v -> Optional.ofNullable(v.linked)),
                     Codec.INT.fieldOf("group").forGetter(v -> v.group)
             ).apply(instance, StorageMember::new)
+    );
+
+    public static final PacketCodec<RegistryByteBuf, StorageMember> PACKET_CODEC = PacketCodec.tuple(
+            Position.PACKET_CODEC, s -> s.pos,
+            PacketCodecs.optional(Position.PACKET_CODEC), s -> Optional.ofNullable(s.linked),
+            PacketCodecs.INTEGER, s -> s.group,
+            StorageMember::new
     );
 
     public final Position pos;
@@ -29,6 +44,18 @@ public final class StorageMember {
         this.pos = pos;
     }
 
+    public Position pos(){
+        return this.pos;
+    }
+
+    public Position linked(){
+        return this.linked;
+    }
+
+    public int group(){
+        return this.group;
+    }
+
     void setGroup(int group) {
         this.linked = null;
         this.group = group;
@@ -37,18 +64,5 @@ public final class StorageMember {
     void linkTo(Position pos) {
         this.group = 0;
         this.linked = pos;
-    }
-
-    public boolean canInsertItem(StorageSystem system, ItemData item) {
-        var group = system.getGroup(this);
-        for (var filter : group.filters) {
-            var match = filter.matches(item);
-            if (match) return group.kind != StorageSystem.ListKind.Blacklist;
-        }
-        return group.kind == StorageSystem.ListKind.Blacklist;
-    }
-
-    public boolean canRemoveItem(StorageSystem system, ItemData item) {
-        return true;
     }
 }

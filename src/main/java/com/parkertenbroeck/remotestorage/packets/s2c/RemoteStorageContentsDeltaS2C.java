@@ -16,7 +16,7 @@ public record RemoteStorageContentsDeltaS2C(int syncId, int revision, Map<ItemDa
             (value, buf) -> {
                 buf.writeInt(value.size());
                 value.forEach((data, count) -> {
-                    ItemData.ITEM_DATA_PACKET_CODEC.encode(buf, data);
+                    ItemData.PACKET_CODEC.encode(buf, data);
                     buf.writeInt(count);
                 });
             },
@@ -24,19 +24,16 @@ public record RemoteStorageContentsDeltaS2C(int syncId, int revision, Map<ItemDa
                 var length = buf.readInt();
                 var map = new HashMap<ItemData, Integer>(length);
                 for(int i = 0; i < length; i ++){
-                    map.put(ItemData.ITEM_DATA_PACKET_CODEC.decode(buf), buf.readInt());
+                    map.put(ItemData.PACKET_CODEC.decode(buf), buf.readInt());
                 }
                 return map;
             }
     );
 
     public static final PacketCodec<RegistryByteBuf, RemoteStorageContentsDeltaS2C> CODEC = PacketCodec.tuple(
-            PacketCodecs.SYNC_ID,
-            RemoteStorageContentsDeltaS2C::syncId,
-            PacketCodecs.VAR_INT,
-            RemoteStorageContentsDeltaS2C::revision,
-            ITEM_DATA_COUNT_MAP_PACKET,
-            RemoteStorageContentsDeltaS2C::map,
+            PacketCodecs.SYNC_ID, RemoteStorageContentsDeltaS2C::syncId,
+            PacketCodecs.VAR_INT, RemoteStorageContentsDeltaS2C::revision,
+            ITEM_DATA_COUNT_MAP_PACKET, RemoteStorageContentsDeltaS2C::map,
             RemoteStorageContentsDeltaS2C::new
     );
 

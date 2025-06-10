@@ -4,7 +4,7 @@ package com.parkertenbroeck.remotestorage;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.vertex.*;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
@@ -68,7 +68,7 @@ public class OutlineRenderer {
         return new BlockPos(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
-    public static synchronized void render(WorldRenderContext context, StorageSystemPositionsS2C system) {
+    public static synchronized void render(WorldRenderContext context, StorageSystemMembersS2C system) {
         var target = targetBlock();
         var inv = MinecraftClient.getInstance().player.clientWorld.getBlockEntity(target) instanceof Inventory;
         if(inv){
@@ -87,10 +87,10 @@ public class OutlineRenderer {
         }
 
         for(var member : members){
-            drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.parent()==null?1.0f:0.0f, 1.0f);
+            drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.linked()==null?1.0f:0.0f, 1.0f);
 
-            if(member.parent()!=null){
-                drawPathLines(context.matrixStack(), context.consumers(), List.of(member.pos().pos(), member.parent().pos()));
+            if(member.linked()!=null){
+                drawPathLines(context.matrixStack(), context.consumers(), List.of(member.pos().pos(), member.linked().pos()));
             }
         }
     }

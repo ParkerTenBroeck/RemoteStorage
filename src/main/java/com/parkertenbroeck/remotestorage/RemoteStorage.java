@@ -3,7 +3,7 @@ package com.parkertenbroeck.remotestorage;
 import com.parkertenbroeck.remotestorage.packets.c2s.*;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
 import com.parkertenbroeck.remotestorage.system.Position;
 import com.parkertenbroeck.remotestorage.system.RemoteStorageSavedState;
 import net.fabricmc.api.ModInitializer;
@@ -14,11 +14,9 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
-import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.registry.Registries;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -37,7 +35,7 @@ public class RemoteStorage implements ModInitializer {
 	public void onInitialize() {
 		PayloadTypeRegistry.playS2C().register(RemoteStorageContentsDeltaS2C.ID, RemoteStorageContentsDeltaS2C.CODEC);
 		PayloadTypeRegistry.playS2C().register(OpenRemoteStorageS2C.ID, OpenRemoteStorageS2C.CODEC);
-		PayloadTypeRegistry.playS2C().register(StorageSystemPositionsS2C.ID, StorageSystemPositionsS2C.CODEC);
+		PayloadTypeRegistry.playS2C().register(StorageSystemMembersS2C.ID, StorageSystemMembersS2C.CODEC);
 
 		PayloadTypeRegistry.playC2S().register(OpenRemoteStorageC2S.ID, OpenRemoteStorageC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(AddToRemoteStorageC2S.ID, AddToRemoteStorageC2S.CODEC);

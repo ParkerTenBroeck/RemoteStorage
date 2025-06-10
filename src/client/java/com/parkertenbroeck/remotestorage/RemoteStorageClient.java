@@ -6,7 +6,7 @@ import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.c2s.RemoveFromRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
 import com.parkertenbroeck.remotestorage.system.Position;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
@@ -46,7 +46,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 	private static boolean attackPressed = false;
 	private static boolean usePressed = false;
 
-	private static StorageSystemPositionsS2C system = new StorageSystemPositionsS2C("default", List.of());
+	private static StorageSystemMembersS2C system = new StorageSystemMembersS2C("default", List.of());
 	private static boolean editMode = false;
 	public static BlockPos linkTarget = null;
 
@@ -134,7 +134,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 			if (editMode) OutlineRenderer.render(context, system);
 		});
 
-		ClientPlayNetworking.registerGlobalReceiver(StorageSystemPositionsS2C.ID, (packet, context) -> system = packet);
+		ClientPlayNetworking.registerGlobalReceiver(StorageSystemMembersS2C.ID, (packet, context) -> system = packet);
 
 		ClientPlayNetworking.registerGlobalReceiver(OpenRemoteStorageS2C.ID, (packet, context) -> {
 			var handler = new RemoteStorageScreenHandler(packet.syncId(), context.player().getInventory(), packet);

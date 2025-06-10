@@ -3,19 +3,11 @@ package com.parkertenbroeck.remotestorage.system;
 import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.ItemData;
-import com.parkertenbroeck.remotestorage.RemoteStorage;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemPositionsS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import net.minecraft.component.Component;
-import net.minecraft.component.ComponentType;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.SimpleRegistry;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.StringIdentifiable;
 
 import java.util.*;
@@ -37,7 +29,6 @@ public class StorageSystem {
             ).apply(instance, StorageSystem::new)
     );
 
-
     public StorageSystem(){
         next_id = 1;
         clear();
@@ -52,16 +43,10 @@ public class StorageSystem {
 
     public static final int MAX_LINKED_LENGTH = 5;
 
-    public StorageSystemPositionsS2C getPositions() {
-        return new StorageSystemPositionsS2C(
+    public StorageSystemMembersS2C getPositions() {
+        return new StorageSystemMembersS2C(
                 name,
-                members.entrySet()
-                        .stream()
-                        .map(e -> new StorageSystemPositionsS2C.Member(
-                                e.getKey(),
-                                e.getValue().linked,
-                                e.getValue().group
-                        )).toList()
+                members.values().stream().toList()
         );
     }
 
@@ -90,12 +75,12 @@ public class StorageSystem {
         groups.put(0, Group.defaultGroup());
     }
 
-    public Iterable<StorageMember> inputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).inputPriority))::iterator;
+    private Iterable<StorageMember> inputPriorityOrdered(){
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).input.priority))::iterator;
     }
 
-    public Iterable<StorageMember> outputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).outputPriority))::iterator;
+    private Iterable<StorageMember> outputPriorityOrdered(){
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).output.priority))::iterator;
     }
 
     public Iterable<StorageMember> unorderedMembers(){
@@ -157,7 +142,7 @@ public class StorageSystem {
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item, int desired){
         int moved = 0;
         for (var member : outputPriorityOrdered()) {
-            if(!member.canRemoveItem(this, item))continue;
+            if(!this.getGroup(member).input.check(item))continue;
             if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
                 for(var stack : inv){
                     if(item.equals(stack)){
@@ -186,7 +171,7 @@ public class StorageSystem {
         for (var member : inputPriorityOrdered()) {
             if(desiredAmount==0)break;
             if(stack.isEmpty())break;
-            if(!member.canInsertItem(this, new ItemData(stack)))continue;
+            if(!this.getGroup(member).input.check(new ItemData(stack)))continue;
 
             if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
                 for (int i = 0 ; i < inv.size(); i ++) {
