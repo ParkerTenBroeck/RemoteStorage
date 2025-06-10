@@ -1,5 +1,6 @@
 package com.parkertenbroeck.remotestorage;
 
+import com.mojang.serialization.Codec;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.RegistryByteBuf;
@@ -19,6 +20,7 @@ public record ItemData(ItemStack item) {
             ItemStack.OPTIONAL_PACKET_CODEC.encode(buf, data.item);
         }
     };
+    public static final Codec<ItemData> CODEC = ItemStack.CODEC.xmap(ItemData::new, ItemData::item);
 
     public ItemData(Item item){
         this(new ItemStack(item));
@@ -34,11 +36,17 @@ public record ItemData(ItemStack item) {
 
     @Override
     public boolean equals(Object obj) {
-        if(obj instanceof ItemStack stack)
-            return equals(this.item, stack);
-        if(obj instanceof ItemData data)
-            return equals(this.item, data.item);
+        if(obj instanceof ItemStack stack) return this.equals(stack);
+        if(obj instanceof ItemData data) return this.equals(data.item);
         return false;
+    }
+
+    public boolean equals(ItemData data){
+        return equals(this.item, data.item);
+    }
+
+    public boolean equals(ItemStack stack){
+        return equals(this.item, stack);
     }
 
     @Override

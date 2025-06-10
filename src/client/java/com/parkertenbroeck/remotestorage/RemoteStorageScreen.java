@@ -136,12 +136,12 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if(keyCode != GLFW.GLFW_KEY_ESCAPE){
+        if(keyCode == GLFW.GLFW_KEY_ESCAPE){
             return super.keyPressed(keyCode, scanCode, modifiers);
-        }else if(this.searchField.isFocused() && this.searchField.keyPressed(keyCode, scanCode, modifiers)){
-            return true;
-        }else if(this.recipeBook.isFocused() && this.recipeBook.keyPressed(keyCode, scanCode, modifiers)){
-            return true;
+        }else if(this.searchField.isFocused()){
+            return this.searchField.keyPressed(keyCode, scanCode, modifiers);
+        }else if(this.recipeBook.isFocused()){
+            return this.recipeBook.keyPressed(keyCode, scanCode, modifiers);
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }

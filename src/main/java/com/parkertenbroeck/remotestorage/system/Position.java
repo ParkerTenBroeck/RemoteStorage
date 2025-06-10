@@ -1,5 +1,7 @@
 package com.parkertenbroeck.remotestorage.system;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.RegistryByteBuf;
@@ -15,6 +17,12 @@ public record Position(BlockPos pos, Identifier world) {
             BlockPos.PACKET_CODEC, Position::pos,
             Identifier.PACKET_CODEC, Position::world,
             Position::new
+    );
+    public static final Codec<Position> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+                BlockPos.CODEC.fieldOf("pos").forGetter(Position::pos),
+                Identifier.CODEC.fieldOf("world").forGetter(Position::world)
+        ).apply(instance, Position::new)
     );
 
     public BlockEntity blockEntityAt(MinecraftServer server) {

@@ -38,8 +38,15 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
 
     private final int storageWidth = 9;
     private final int storageHeight = 6;
-    public final int playerInventorySize;
-    public final int craftingGridSize = 3*3+1;//3x3 and output slot
+    public final int craftingGridOutputSlot;
+    public final int craftingGridInputSlotsStart;
+    public final int craftingGridInputSlotsEnd;
+    public final int playerEquipmentSlotsStart;
+    public final int playerEquipmentSlotsEnd;
+    public final int playerMainInvSlotsStart;
+    public final int playerMainInvSlotsEnd;
+    public final int playerOffHandSlot;
+
     public final int fakeInvStart;
 
     public int storageRevision = 0;
@@ -133,8 +140,64 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
         this.system = system;
 
         this.player = inv.player;
-        playerInventorySize = populateSlots(inv);
-        fakeInvStart = playerInventorySize+craftingGridSize;
+
+        this.craftingGridOutputSlot = this.slots.size();
+        this.addResultSlot(inv.player, 134, 132+18);
+        this.craftingGridInputSlotsStart = this.slots.size();
+        this.addInputSlots(26, 132);
+        this.craftingGridInputSlotsEnd = this.slots.size();
+
+
+        this.playerEquipmentSlotsStart = this.slots.size();
+        this.addSlot(new ArmorSlot(inv, inv.player,
+                EquipmentSlot.HEAD,
+                EquipmentSlot.HEAD.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6,
+                PlayerScreenHandler.EMPTY_HELMET_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(inv, inv.player,
+                EquipmentSlot.CHEST,
+                EquipmentSlot.CHEST.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18,
+                PlayerScreenHandler.EMPTY_CHESTPLATE_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(inv, inv.player,
+                EquipmentSlot.LEGS,
+                EquipmentSlot.LEGS.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18*2,
+                PlayerScreenHandler.EMPTY_LEGGINGS_SLOT_TEXTURE
+        ));
+        this.addSlot(new ArmorSlot(inv, inv.player,
+                EquipmentSlot.FEET,
+                EquipmentSlot.FEET.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
+                204,
+                6+18*3,
+                PlayerScreenHandler.EMPTY_BOOTS_SLOT_TEXTURE
+        ));
+        this.playerEquipmentSlotsEnd = this.slots.size();
+
+        this.playerMainInvSlotsStart = this.slots.size();
+        this.addPlayerSlots(inv, 8, 201);
+        this.playerMainInvSlotsEnd = this.slots.size();
+
+        this.playerOffHandSlot = this.slots.size();
+        this.addSlot(new Slot(inv, PlayerInventory.OFF_HAND_SLOT, 204, 89){
+            @Override
+            public void setStack(ItemStack stack, ItemStack previousStack) {
+                inv.player.onEquipStack(EquipmentSlot.OFFHAND, previousStack, stack);
+                super.setStack(stack, previousStack);
+            }
+
+            @Override
+            public Identifier getBackgroundSprite() {
+                return PlayerScreenHandler.EMPTY_OFF_HAND_SLOT_TEXTURE;
+            }
+        });
+
+        fakeInvStart = this.slots.size();
 
         if(system==null){
             this.fakeInventory = new RSInventory(storageHeight * storageWidth);
@@ -201,7 +264,7 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
                 craftingInventory.getHeldStacks().forEach(recipeFinder::addInputIfUsable);
                 for(var slot : getInputSlots()){
                     insertIntoStorage(slot.getStack());
-                    this.insertItem(slot.getStack(), 10, 45, true);
+                    this.insertItem(slot.getStack(), playerMainInvSlotsStart, playerMainInvSlotsEnd, true);
                     if(!slot.getStack().isEmpty())
                         return PostFillAction.NOTHING;
                 }
@@ -252,6 +315,10 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
     }
 
     @Override
+    protected void onInputSlotFillStart() {
+    }
+
+    @Override
     public void onInputSlotFillFinish(ServerWorld world, RecipeEntry<CraftingRecipe> recipe) {
         updateResult(this, world, this.player, this.craftingInventory, this.craftingResultInventory, recipe);
     }
@@ -268,57 +335,6 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
     public void populateRecipeFinder(RecipeFinder finder) {
         super.populateRecipeFinder(finder);
         currentMap.entrySet().stream().map(e -> e.getKey().withCount(e.getValue())).forEach(finder::addInputIfUsable);
-    }
-
-    private int populateSlots(PlayerInventory playerInventory){
-
-        this.addResultSlot(playerInventory.player, 134, 132+18);
-        this.addInputSlots(26, 132);
-
-        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
-                EquipmentSlot.HEAD,
-                EquipmentSlot.HEAD.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
-                204,
-                6,
-                PlayerScreenHandler.EMPTY_HELMET_SLOT_TEXTURE
-        ));
-        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
-                EquipmentSlot.CHEST,
-                EquipmentSlot.CHEST.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
-                204,
-                6+18,
-                PlayerScreenHandler.EMPTY_CHESTPLATE_SLOT_TEXTURE
-        ));
-        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
-                EquipmentSlot.LEGS,
-                EquipmentSlot.LEGS.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
-                204,
-                6+18*2,
-                PlayerScreenHandler.EMPTY_LEGGINGS_SLOT_TEXTURE
-        ));
-        this.addSlot(new ArmorSlot(playerInventory, playerInventory.player,
-                EquipmentSlot.FEET,
-                EquipmentSlot.FEET.getOffsetEntitySlotId(PlayerInventory.MAIN_SIZE),
-                204,
-                6+18*3,
-                PlayerScreenHandler.EMPTY_BOOTS_SLOT_TEXTURE
-        ));
-
-        this.addPlayerSlots(playerInventory, 8, 201);
-
-        this.addSlot(new Slot(playerInventory, PlayerInventory.OFF_HAND_SLOT, 204, 89){
-            @Override
-            public void setStack(ItemStack stack, ItemStack previousStack) {
-                playerInventory.player.onEquipStack(EquipmentSlot.OFFHAND, previousStack, stack);
-                super.setStack(stack, previousStack);
-            }
-
-            @Override
-            public Identifier getBackgroundSprite() {
-                return PlayerScreenHandler.EMPTY_OFF_HAND_SLOT_TEXTURE;
-            }
-        });
-        return playerInventory.size();
     }
 
     public void serverTick(){
@@ -409,10 +425,21 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
     }
 
     void quickMoveOut(ItemData item, int amount){
-        //TODO calculate max transfer that player inventory can accept
+        var canAccept = 0;
+        for(var stack : this.slots.subList(playerMainInvSlotsStart, playerMainInvSlotsEnd)){
+            if(!stack.canInsert(item.withCount(amount)))continue;
+            if(stack.getStack().isEmpty()){
+                canAccept += item.stackSize();
+                continue;
+            }
+            if(!item.equals(stack.getStack()))continue;
+            canAccept += stack.getStack().getMaxCount()-stack.getStack().getCount();
+        }
+        amount = Math.min(amount, canAccept);
+
         amount =  Math.min(amount, item.stackSize());
         var transferred = getFromStorage(item, amount);
-        this.insertItem(transferred, 10, 45, true);
+        this.insertItem(transferred, playerMainInvSlotsStart, playerMainInvSlotsEnd, true);
         if(transferred.getCount()!=0){
             this.setCursorStack(transferred);
             makeDirty(item);
@@ -460,7 +487,7 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
             var orig = slot.getStack().copy();
 
             if(slot_index==0){
-                this.insertItem(stack, 10, 45, true);
+                this.insertItem(stack, playerMainInvSlotsStart, playerMainInvSlotsEnd, true);
             }
             insertIntoStorage(stack);
             if(!stack.isEmpty()) {

@@ -2,6 +2,7 @@ package com.parkertenbroeck.remotestorage.system;
 
 import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.parkertenbroeck.remotestorage.RemoteStorage;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -33,7 +34,7 @@ public class RemoteStorageSavedState extends PersistentState {
     );
 
     private static final PersistentStateType<RemoteStorageSavedState> TYPE = new PersistentStateType<>(
-            RemoteStorageSavedState.class.getName(),
+            RemoteStorage.MOD_ID+"_remote_storage",
             RemoteStorageSavedState::new,
             CODEC,
             null
@@ -44,7 +45,7 @@ public class RemoteStorageSavedState extends PersistentState {
     }
 
     public static StorageSystem get(ServerPlayerEntity player) {
-        var state = player.getServer().getWorld(World.OVERWORLD).getPersistentStateManager().getOrCreate(TYPE);
+        var state = getInstance(player);
         return state.getSystem(player);
     }
 
@@ -95,7 +96,7 @@ public class RemoteStorageSavedState extends PersistentState {
         if(!system.members.containsKey(parent)) return LinkResult.ParentIsNotMember;
 
         instance.markDirty();
-        system.members.get(child).linkTo(parent);
+        system.link(child, parent);
 
         return LinkResult.Success;
     }
