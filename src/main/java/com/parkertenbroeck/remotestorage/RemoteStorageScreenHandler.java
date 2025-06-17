@@ -36,8 +36,8 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
     private final PlayerEntity player;
     private StorageSystem system;
 
-    private final int storageWidth = 9;
-    private final int storageHeight = 6;
+    public final int storageWidth = 9;
+    public final int storageHeight = 6;
     public final int craftingGridOutputSlot;
     public final int craftingGridInputSlotsStart;
     public final int craftingGridInputSlotsEnd;

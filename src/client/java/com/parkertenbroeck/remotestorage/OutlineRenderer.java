@@ -4,7 +4,8 @@ package com.parkertenbroeck.remotestorage;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.vertex.*;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
+import com.parkertenbroeck.remotestorage.system.StorageSystem;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
@@ -68,22 +69,23 @@ public class OutlineRenderer {
         return new BlockPos(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
-    public static synchronized void render(WorldRenderContext context, StorageSystemMembersS2C system) {
+    public static synchronized void render(WorldRenderContext context, StorageSystem system) {
         var target = targetBlock();
         var inv = MinecraftClient.getInstance().player.clientWorld.getBlockEntity(target) instanceof Inventory;
         if(inv){
             DebugRenderer.drawBox(context.matrixStack(), context.consumers(), target, 0.0f, 1.0f, 1.0f, 1.0f, 0.5f);
         }
 
-
         var world = MinecraftClient.getInstance().player.getWorld().getRegistryKey().getValue();
-        var members = system.members().stream()
+
+        var members = system.unorderedMembers().stream()
                 .filter(p -> getManhattanDistance(p.pos().pos(), context.camera().getPos())<80.0)
                 .filter(p -> p.pos().world().equals(world))
                 .toList();
 
-        if(RemoteStorageClient.linkTarget!=null){
-            DebugRenderer.drawBox(context.matrixStack(), context.consumers(), RemoteStorageClient.linkTarget, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f);
+        var link = RemoteStorageClient.linkTarget;
+        if(link!=null){
+            DebugRenderer.drawBox(context.matrixStack(), context.consumers(), link.pos(), 0.0f, 1.0f, 0.0f, 0.0f, 0.5f);
         }
 
         for(var member : members){

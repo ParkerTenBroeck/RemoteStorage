@@ -11,6 +11,7 @@ import net.minecraft.registry.RegistryKeys;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 
 public record Position(BlockPos pos, Identifier world) {
     public static final PacketCodec<RegistryByteBuf, Position> PACKET_CODEC = PacketCodec.tuple(
@@ -20,7 +21,7 @@ public record Position(BlockPos pos, Identifier world) {
     );
     public static final Codec<Position> CODEC = RecordCodecBuilder.create(instance ->
         instance.group(
-                BlockPos.CODEC.fieldOf("pos").forGetter(Position::pos),
+                BlockPos.CODEC.fieldOf("memberPos").forGetter(Position::pos),
                 Identifier.CODEC.fieldOf("world").forGetter(Position::world)
         ).apply(instance, Position::new)
     );
@@ -32,6 +33,14 @@ public record Position(BlockPos pos, Identifier world) {
     }
 
     public static Position of(PlayerEntity player, BlockPos pos) {
-        return new Position(pos, player.getWorld().getRegistryKey().getValue());
+        return Position.of(player.getWorld(), pos);
+    }
+
+    public static Position of(World world, BlockPos pos) {
+        return new Position(pos, world.getRegistryKey().getValue());
+    }
+
+    public String toShortString() {
+        return pos.toShortString();
     }
 }

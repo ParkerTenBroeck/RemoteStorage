@@ -3,55 +3,66 @@ package com.parkertenbroeck.remotestorage.system;
 import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.ItemData;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodec;
+import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.StringIdentifiable;
+import net.minecraft.world.World;
 
 import java.util.*;
-import java.util.stream.Stream;
 
 public class StorageSystem {
+    public static final int MAX_LINKED_LENGTH = 5;
+
     public String name = "Default";
     final HashMap<Position, StorageMember> members = new HashMap<>();
     final Int2ObjectOpenHashMap<Group> groups = new Int2ObjectOpenHashMap<>();
-    private int next_id;
+
+    StorageSystemContext context;
 
     public static final Codec<StorageSystem> CODEC = RecordCodecBuilder.create(
         instance ->
             instance.group(
                     Codec.STRING.fieldOf("name").forGetter(i -> i.name),
                     Codec.list(StorageMember.CODEC).fieldOf("members").forGetter(i -> i.members.values().stream().toList()),
-                    Codec.list(Group.CODEC).fieldOf("groups").forGetter(i -> i.groups.values().stream().toList()),
-                    Codec.INT.fieldOf("next_id").forGetter(i -> i.next_id)
+                    Codec.list(Group.CODEC).fieldOf("groups").forGetter(i -> i.groups.values().stream().toList())
             ).apply(instance, StorageSystem::new)
+    );
+    public static final PacketCodec<RegistryByteBuf, StorageSystem> PACKET_CODEC = PacketCodec.tuple(
+            PacketCodecs.STRING, s -> s.name,
+            StorageMember.PACKET_CODEC.collect(PacketCodecs.toList()), s -> s.members.values().stream().toList(),
+            Group.PACKET_CODEC.collect(PacketCodecs.toList()), s -> s.groups.values().stream().toList(),
+            StorageSystem::new
     );
 
     public StorageSystem(){
-        next_id = 1;
         clear();
     }
 
-    private StorageSystem(String name, List<StorageMember> members, List<Group> groups, int next_id){
+    private StorageSystem(String name, List<StorageMember> members, List<Group> groups){
         this.name = name;
         members.forEach(m -> this.members.put(m.pos, m));
         groups.forEach(g -> this.groups.put(g.id, g));
-        this.next_id = next_id;
     }
 
-    public static final int MAX_LINKED_LENGTH = 5;
-
-    public StorageSystemMembersS2C getPositions() {
-        return new StorageSystemMembersS2C(
-                name,
-                members.values().stream().toList()
-        );
+    public void setContext(StorageSystemContext context) {
+        if(this.context==context)return;
+        this.context = context;
     }
 
-    protected boolean remove(Position pos) {
-        return members.remove(pos) != null;
+    public void resync(ServerPlayerEntity player){
+        ServerPlayNetworking.send(player, new StorageSystemResyncS2C(this));
+    }
+
+    public boolean remove(Position pos) {
+        var removed = members.remove(pos) != null;
+        if(removed&&context!=null)context.remove(pos);
+        return removed;
     }
 
     public boolean unlink(Position pos) {
@@ -59,50 +70,49 @@ public class StorageSystem {
         if(member==null)return false;
         if(member.linked==null)return false;
         member.linked = null;
+        if(context!=null)context.unlink(pos);
         return true;
     }
 
-
-    protected boolean addMember(Position pos){
-        if(members.containsKey(pos))return false;
-        members.put(pos, new StorageMember(pos));
-        return true;
+    public StorageMember member(Position pos) {
+        return members.get(pos);
     }
 
-    protected void clear() {
-        groups.clear();
-        members.clear();
-        groups.put(0, Group.defaultGroup());
+    public enum LinkResult{
+        Success(true),
+        CannotLinkToSelf(false),
+        ChildIsNotMember(false),
+        ParentIsNotMember(false),
+        CannotCreateCircularLink(true),
+        ParentChildInDifferentWorlds(false);
+
+        public final boolean modified;
+
+        LinkResult(boolean modified) {
+            this.modified = modified;
+        }
     }
 
-    private Iterable<StorageMember> inputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).input.priority))::iterator;
-    }
+    public LinkResult link(Position child, Position parent) {
+        if(child.equals(parent)) return LinkResult.CannotLinkToSelf;
+        if(!child.world().equals(parent.world())) return LinkResult.ParentChildInDifferentWorlds;
 
-    private Iterable<StorageMember> outputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.getGroup(o).output.priority))::iterator;
-    }
+        if(!members.containsKey(child)) return LinkResult.ChildIsNotMember;
+        if(!members.containsKey(parent)) return LinkResult.ParentIsNotMember;
 
-    public Iterable<StorageMember> unorderedMembers(){
-        return members.values();
-    }
-
-    public Stream<StorageMember> streamUnorderedMembers(){
-        return members.values().stream();
-    }
-
-    public void link(Position child, Position parent) {
         var start = members.get(child);
         var current = start;
         current.linkTo(parent);
 
+        // TODO this doesn't really work properly...
         var encountered = new HashSet<Position>();
         int i = 0;
         encountered.add(current.pos);
         while(current.linked!=null){
             if(encountered.contains(current.linked)){
                 current.linked = null;
-                return;
+                if(context!=null)context.link(child, parent);
+                return LinkResult.CannotCreateCircularLink;
             }
             encountered.add(current.linked);
             current = members.get(current.linked);
@@ -113,26 +123,80 @@ public class StorageSystem {
             }
             i++;
         }
+
+        if(context!=null)context.link(child, parent);
+        return LinkResult.Success;
     }
 
-    public Group getGroup(StorageMember member){
+    public boolean add(Position pos, World world){
+        if(world!=null&&world.getRegistryKey().getValue().equals(pos.world())&&!(world.getBlockEntity(pos.pos()) instanceof Inventory))return false;
+        if(members.containsKey(pos))return false;
+        members.put(pos, new StorageMember(pos));
+        if(context!=null)context.add(pos);
+        return true;
+    }
+
+    public void clear() {
+        groups.clear();
+        members.clear();
+        groups.put(0, Group.defaultGroup());
+        if(context!=null)context.clear();
+    }
+
+    private Iterable<StorageMember> inputPriorityOrdered(){
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.group(o).input.priority()))::iterator;
+    }
+
+    private Iterable<StorageMember> outputPriorityOrdered(){
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.group(o).output.priority()))::iterator;
+    }
+
+    public Collection<StorageMember> unorderedMembers(){
+        return members.values();
+    }
+
+    public void setGroup(StorageMember member, Group group){
+        if(members.get(member.pos) != member)throw new IllegalArgumentException();
+        if(groups.get(group.id) != group)throw new IllegalArgumentException();
+        setGroup(member.pos, group.id);
+    }
+
+    public void setGroup(Position pos, int groupId){
+        members.get(pos).group = groupId;
+        if(context!=null)context.setGroup(pos, groupId);
+    }
+
+    public Collection<Group> groups(){
+        return groups.values();
+    }
+
+    public void updateGroup(Group group){
+        groups.put(group.id, group);
+        if(context!=null)context.updateGroup(group);
+    }
+
+    public Group newGroup(){
+        int id = 0;
+        while(groups.containsKey(id)) id++;
+        return new Group(id);
+    }
+
+    public Group groupNoDefault(int id){
+        return groups.get(id);
+    }
+
+    public Group group(int id){
+        return groups.getOrDefault(id, new Group(id));
+    }
+
+    public Group group(StorageMember member){
+        if(members.get(member.pos) != member)throw new IllegalArgumentException();
         var linked = member;
         for(int i = 0; linked.linked!=null&&i< MAX_LINKED_LENGTH; i ++){
             linked = members.get(linked.linked);
             if(linked==null) return Group.defaultGroup();
         }
-        if(!groups.containsKey(linked.group))return Group.defaultGroup();
-        return groups.get(linked.group);
-    }
-
-    public enum ListKind implements StringIdentifiable {
-        Blacklist,
-        Whitelist;
-
-        @Override
-        public String asString() {
-            return this.name().toLowerCase();
-        }
+        return group(linked.group);
     }
 
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item){
@@ -142,7 +206,7 @@ public class StorageSystem {
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item, int desired){
         int moved = 0;
         for (var member : outputPriorityOrdered()) {
-            if(!this.getGroup(member).input.check(item))continue;
+            if(!this.group(member).input.matches(item))continue;
             if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
                 for(var stack : inv){
                     if(item.equals(stack)){
@@ -171,7 +235,7 @@ public class StorageSystem {
         for (var member : inputPriorityOrdered()) {
             if(desiredAmount==0)break;
             if(stack.isEmpty())break;
-            if(!this.getGroup(member).input.check(new ItemData(stack)))continue;
+            if(!this.group(member).input.matches(new ItemData(stack)))continue;
 
             if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
                 for (int i = 0 ; i < inv.size(); i ++) {

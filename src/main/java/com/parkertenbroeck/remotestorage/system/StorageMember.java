@@ -17,7 +17,7 @@ import java.util.Optional;
 public final class StorageMember {
     public static final Codec<StorageMember> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                    Position.CODEC.fieldOf("pos").forGetter(v -> v.pos),
+                    Position.CODEC.fieldOf("memberPos").forGetter(v -> v.pos),
                     Codec.optionalField("linked", Position.CODEC, true).forGetter(v -> Optional.ofNullable(v.linked)),
                     Codec.INT.fieldOf("group").forGetter(v -> v.group)
             ).apply(instance, StorageMember::new)

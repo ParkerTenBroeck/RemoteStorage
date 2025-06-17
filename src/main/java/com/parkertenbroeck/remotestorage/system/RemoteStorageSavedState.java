@@ -3,11 +3,10 @@ package com.parkertenbroeck.remotestorage.system;
 import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.RemoteStorage;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
 import net.minecraft.util.Uuids;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.PersistentState;
 import net.minecraft.world.PersistentStateType;
 import net.minecraft.world.World;
@@ -19,6 +18,28 @@ import java.util.UUID;
 public class RemoteStorageSavedState extends PersistentState {
 
     public final HashMap<UUID, StorageSystem> playerMap = new HashMap<>();
+    private final StorageSystemContext context = new StorageSystemContext() {
+        @Override
+        public void unlink(Position pos) {markDirty();}
+
+        @Override
+        public void add(Position pos) {markDirty();}
+
+        @Override
+        public void clear() {markDirty();}
+
+        @Override
+        public void remove(Position pos) {markDirty();}
+
+        @Override
+        public void link(Position child, Position parent) {markDirty();}
+
+        @Override
+        public void updateGroup(Group group) {markDirty();}
+
+        @Override
+        public void setGroup(Position member, int group) {markDirty();}
+    };
 
     private RemoteStorageSavedState(Map<UUID, StorageSystem> map){
         this.playerMap.putAll(map);
@@ -49,56 +70,9 @@ public class RemoteStorageSavedState extends PersistentState {
         return state.getSystem(player);
     }
 
-    public static boolean removeMember(ServerPlayerEntity player, Position pos) {
-        var instance = getInstance(player);
-        if(instance.getSystem(player).remove(pos)){
-            instance.markDirty();
-            return true;
-        }
-        return false;
-    }
-
-    public static boolean addMember(ServerPlayerEntity player, Position pos) {
-        var instance = getInstance(player);
-        if(instance.getSystem(player).addMember(pos)){
-            instance.markDirty();
-            return true;
-        }
-        return false;
-    }
-
-    public static void syncWithPlayer(ServerPlayerEntity player){
-        ServerPlayNetworking.send(player, RemoteStorageSavedState.get(player).getPositions());
-    }
-
-    public static boolean unlinkMember(ServerPlayerEntity player, Position pos) {
-        var instance = getInstance(player);
-        if(instance.getSystem(player).unlink(pos)){
-            instance.markDirty();
-            return true;
-        }
-        return false;
-    }
-
-    public enum LinkResult{
-        Success,
-        CannotLinkToSelf,
-        ChildIsNotMember,
-        ParentIsNotMember,
-    }
-
-    public static LinkResult linkMember(ServerPlayerEntity player, Position child, Position parent) {
-        if(child.equals(parent)) return LinkResult.CannotLinkToSelf;
-        var instance = getInstance(player);
-        var system = instance.getSystem(player);
-
-        if(!system.members.containsKey(child)) return LinkResult.ChildIsNotMember;
-        if(!system.members.containsKey(parent)) return LinkResult.ParentIsNotMember;
-
-        instance.markDirty();
-        system.link(child, parent);
-
-        return LinkResult.Success;
+    public static void resyncWithPlayer(ServerPlayerEntity player){
+        RemoteStorage.LOGGER.info("Resynced storage system with player " + player.toString());
+        RemoteStorageSavedState.get(player).resync(player);
     }
 
     private StorageSystem getSystem(ServerPlayerEntity player){
@@ -106,7 +80,8 @@ public class RemoteStorageSavedState extends PersistentState {
             playerMap.put(player.getUuid(), new StorageSystem());
             markDirty();
         }
-        return playerMap.get(player.getUuid());
+        var sys = playerMap.get(player.getUuid());
+        sys.setContext(context);
+        return sys;
     }
-
 }

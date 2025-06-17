@@ -1,10 +1,10 @@
 package com.parkertenbroeck.remotestorage;
 
 import com.parkertenbroeck.remotestorage.packets.c2s.*;
+import com.parkertenbroeck.remotestorage.packets.c2s.edit.*;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemMembersS2C;
-import com.parkertenbroeck.remotestorage.system.Position;
+import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
 import com.parkertenbroeck.remotestorage.system.RemoteStorageSavedState;
 import net.fabricmc.api.ModInitializer;
 
@@ -16,7 +16,6 @@ import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -35,13 +34,15 @@ public class RemoteStorage implements ModInitializer {
 	public void onInitialize() {
 		PayloadTypeRegistry.playS2C().register(RemoteStorageContentsDeltaS2C.ID, RemoteStorageContentsDeltaS2C.CODEC);
 		PayloadTypeRegistry.playS2C().register(OpenRemoteStorageS2C.ID, OpenRemoteStorageS2C.CODEC);
-		PayloadTypeRegistry.playS2C().register(StorageSystemMembersS2C.ID, StorageSystemMembersS2C.CODEC);
+		PayloadTypeRegistry.playS2C().register(StorageSystemResyncS2C.ID, StorageSystemResyncS2C.CODEC);
 
 		PayloadTypeRegistry.playC2S().register(OpenRemoteStorageC2S.ID, OpenRemoteStorageC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(AddToRemoteStorageC2S.ID, AddToRemoteStorageC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(LinkRemoteStorageMemberC2S.ID, LinkRemoteStorageMemberC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoteStorageActionC2S.ID, RemoteStorageActionC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoveFromRemoteStorageC2S.ID, RemoveFromRemoteStorageC2S.CODEC);
+		PayloadTypeRegistry.playC2S().register(UpdateGroupRemoteStorageC2S.ID, UpdateGroupRemoteStorageC2S.CODEC);
+		PayloadTypeRegistry.playC2S().register(SetGroupRemoteStorageC2S.ID, SetGroupRemoteStorageC2S.CODEC);
 
 //      breaks when vanilla clients or clients without this mod join so we send our own packet
 //		Registry.register(Registries.SCREEN_HANDLER, NetworkingUtils.createIdentifier(RemoteStorageScreenHandler.class), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
@@ -55,48 +56,11 @@ public class RemoteStorage implements ModInitializer {
 		});
 
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-			RemoteStorageSavedState.syncWithPlayer(handler.player);
+			RemoteStorageSavedState.resyncWithPlayer(handler.player);
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(OpenRemoteStorageC2S.ID, (payload, context) -> {
 			openRemoteStorageScreen(context.player());
-		});
-
-		ServerPlayNetworking.registerGlobalReceiver(LinkRemoteStorageMemberC2S.ID, (payload, context) -> {
-			var child = Position.of(context.player(), payload.child());
-			if(payload.parent().isEmpty()){
-				if(RemoteStorageSavedState.unlinkMember(context.player(), child)){
-					RemoteStorageSavedState.syncWithPlayer(context.player());
-				}
-				return;
-			}
-			var parent = Position.of(context.player(), payload.parent().get());
-			switch(RemoteStorageSavedState.linkMember(context.player(), child, parent)){
-                case Success ->
-						RemoteStorageSavedState.syncWithPlayer(context.player());
-                case CannotLinkToSelf ->
-						context.player().sendMessage(Text.of("Cannot link to self"));
-                case ChildIsNotMember ->
-						context.player().sendMessage(Text.of("Child is not a member of the system"));
-                case ParentIsNotMember ->
-						context.player().sendMessage(Text.of("Parent is not a member of the system"));
-            }
-		});
-
-		ServerPlayNetworking.registerGlobalReceiver(RemoveFromRemoteStorageC2S.ID, (payload, context) -> {
-			if(RemoteStorageSavedState.removeMember(context.player(), Position.of(context.player(), payload.blockPos()))){
-				RemoteStorageSavedState.syncWithPlayer(context.player());
-			}
-		});
-
-		ServerPlayNetworking.registerGlobalReceiver(AddToRemoteStorageC2S.ID, (payload, context) -> {
-			var entity = context.player().getServerWorld().getBlockEntity(payload.blockPos());
-			if(entity instanceof Inventory){
-				if(RemoteStorageSavedState.addMember(context.player(), Position.of(context.player(), payload.blockPos()))) {
-					context.player().sendMessage(Text.of("Target block " + payload.blockPos().toShortString() + " added to system"));
-					RemoteStorageSavedState.syncWithPlayer(context.player());
-				}
-			}
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(RemoteStorageActionC2S.ID, (payload, context) -> {
@@ -108,6 +72,8 @@ public class RemoteStorage implements ModInitializer {
 				RemoteStorage.LOGGER.warn("Received remote storage contents packet that doesn't match sync ID");
 			}
 		});
+
+		systemEditPackets();
 	}
 
 	public void openRemoteStorageScreen(ServerPlayerEntity player){
@@ -132,5 +98,37 @@ public class RemoteStorage implements ModInitializer {
 					}
 				}
 		);
+	}
+
+	private void systemEditPackets(){
+		ServerPlayNetworking.registerGlobalReceiver(LinkRemoteStorageMemberC2S.ID, (payload, context) -> {
+			if(payload.parent().isEmpty()){
+				if(!RemoteStorageSavedState.get(context.player()).unlink(payload.child())){
+					RemoteStorageSavedState.resyncWithPlayer(context.player());
+				}
+			}else if(!RemoteStorageSavedState.get(context.player()).link(payload.child(), payload.parent().get()).modified){
+				RemoteStorageSavedState.resyncWithPlayer(context.player());
+			}
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(RemoveFromRemoteStorageC2S.ID, (payload, context) -> {
+			if(!RemoteStorageSavedState.get(context.player()).remove(payload.pos())){
+				RemoteStorageSavedState.resyncWithPlayer(context.player());
+			}
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(AddToRemoteStorageC2S.ID, (payload, context) -> {
+			if(!RemoteStorageSavedState.get(context.player()).add(payload.pos(), context.player().getWorld())) {
+				RemoteStorageSavedState.resyncWithPlayer(context.player());
+			}
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(UpdateGroupRemoteStorageC2S.ID, (payload, context) -> {
+			RemoteStorageSavedState.get(context.player()).updateGroup(payload.group());
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(SetGroupRemoteStorageC2S.ID, (payload, context) -> {
+			RemoteStorageSavedState.get(context.player()).setGroup(payload.memberPos(), payload.groupId());
+		});
 	}
 }

@@ -17,6 +17,7 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.display.RecipeDisplay;
+import net.minecraft.registry.Registries;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
@@ -38,6 +39,10 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
 
     private final int tw = 227;
     private final int th = 283;
+
+    private double scroll = 0;
+    private int maxScroll = 0;
+    private boolean scrolling = false;
 
     public RemoteStorageScreen(RemoteStorageScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -106,6 +111,13 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         renderBackground(context, mouseX, mouseY, delta);
         super.render(context, mouseX, mouseY, delta);
 
+
+        scroll = Math.clamp(scroll, 0, maxScroll);
+        var texture = maxScroll!=0?SCROLLER_TEXTURE:SCROLLER_DISABLED_TEXTURE;
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, texture, this.x+174, this.y+20+(int)(scroll/maxScroll*91), 12, 15);
+
+
         searchField.render(context, mouseX, mouseY, delta);
         this.recipeBook.render(context, mouseX, mouseY, delta);
         drawMouseoverTooltip(context, mouseX, mouseY);
@@ -155,6 +167,7 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        scroll -= verticalAmount;
 
         System.out.println(horizontalAmount + " "+  verticalAmount);
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -211,7 +224,12 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         ClientPlayNetworking.send(payload);
     }
 
+    private Comparator<ItemStack> getSorter(){
+//        var c = Comparator.comparingInt(ItemStack::getCount);
+        Comparator<ItemStack> c = Comparator.comparingInt(i -> Registries.ITEM.getRawId(i.getItem()));
 
+        return c.reversed();
+    }
 
     @Override
     public void handledScreenTick() {
@@ -245,10 +263,12 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
                         i.getRegistryEntry().getKey().map(k ->
                                 k.getValue().getNamespace().toLowerCase(Locale.ROOT).contains(mod)).orElse(false)
                         )
-                ).sorted(Comparator.comparingInt(ItemStack::getCount).reversed())
+                ).sorted(getSorter())
                 .toList();
 
-        int offset = 0;
+        maxScroll = Math.max(0, (sorted.size()-handler.fakeInventory.size()+handler.storageWidth-1)/handler.storageWidth);
+        scroll = Math.clamp(scroll, 0, maxScroll);
+        int offset = ((int)scroll)*handler.storageWidth;
         for(int i = 0; i < handler.fakeInventory.size(); i ++){
             var slot = handler.getSlot(i+handler.fakeInvStart);
             if(i+offset<sorted.size())
