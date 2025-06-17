@@ -139,7 +139,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 
 			if (client.options.attackKey.isPressed()&&!attackPressed){
 				if(shiftHeld(client)){
-
+					client.setScreen(new GroupListScreen());
 				}if(ctrlHeld(client)){
 					if(target!=null)
 						system.remove(Position.of(client.player, target));
