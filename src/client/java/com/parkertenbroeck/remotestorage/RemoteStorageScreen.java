@@ -168,8 +168,7 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         scroll -= verticalAmount;
-
-        System.out.println(horizontalAmount + " "+  verticalAmount);
+        updateInv();
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
@@ -221,6 +220,7 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
 
     void doAction(RemoteStorageActionC2S payload){
         handler.acceptAction(payload, this.client.player);
+        updateInv();
         ClientPlayNetworking.send(payload);
     }
 
@@ -231,11 +231,7 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
         return c.reversed();
     }
 
-    @Override
-    public void handledScreenTick() {
-        super.handledScreenTick();
-        this.recipeBook.update();
-
+    void updateInv(){
         var nameFilters = new ArrayList<String>();
         var tagFilters = new ArrayList<String>();
         var modFilters = new ArrayList<String>();
@@ -249,9 +245,9 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
                 .stream()
                 .map(entry -> entry.getKey().withCount(entry.getValue()))
                 .filter(i -> nameFilters.stream().allMatch(name ->
-                        i.getName().getString().toLowerCase(Locale.ROOT).contains(name)
-                        || i.getComponents().stream().anyMatch(c ->
-                                c.value().toString().toLowerCase(Locale.ROOT).contains(name))
+                                i.getName().getString().toLowerCase(Locale.ROOT).contains(name)
+                                        || i.getComponents().stream().anyMatch(c ->
+                                        c.value().toString().toLowerCase(Locale.ROOT).contains(name))
                         )
                 )
                 .filter(i -> tagFilters.stream().allMatch(tag ->
@@ -260,8 +256,8 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
                         )
                 ))
                 .filter(i -> modFilters.stream().allMatch(mod ->
-                        i.getRegistryEntry().getKey().map(k ->
-                                k.getValue().getNamespace().toLowerCase(Locale.ROOT).contains(mod)).orElse(false)
+                                i.getRegistryEntry().getKey().map(k ->
+                                        k.getValue().getNamespace().toLowerCase(Locale.ROOT).contains(mod)).orElse(false)
                         )
                 ).sorted(getSorter())
                 .toList();
@@ -276,6 +272,13 @@ public class RemoteStorageScreen extends HandledScreen<RemoteStorageScreenHandle
             else
                 slot.setStack(ItemStack.EMPTY);
         }
+    }
+
+    @Override
+    public void handledScreenTick() {
+        super.handledScreenTick();
+        this.recipeBook.update();
+        updateInv();
     }
 
     void quickMoveOutStack(ItemData item){

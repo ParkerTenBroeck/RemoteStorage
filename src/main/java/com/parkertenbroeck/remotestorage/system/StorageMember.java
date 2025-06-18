@@ -2,42 +2,37 @@ package com.parkertenbroeck.remotestorage.system;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.parkertenbroeck.remotestorage.ItemData;
-import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ContainerComponent;
-import net.minecraft.item.ItemStack;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
 
-import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public final class StorageMember {
     public static final Codec<StorageMember> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     Position.CODEC.fieldOf("memberPos").forGetter(v -> v.pos),
-                    Codec.optionalField("linked", Position.CODEC, true).forGetter(v -> Optional.ofNullable(v.linked)),
-                    Codec.INT.fieldOf("group").forGetter(v -> v.group)
+                    Position.CODEC.lenientOptionalFieldOf("linked").forGetter(StorageMember::linked),
+                    MemberSettings.CODEC.lenientOptionalFieldOf("group").forGetter(StorageMember::settings)
             ).apply(instance, StorageMember::new)
     );
 
     public static final PacketCodec<RegistryByteBuf, StorageMember> PACKET_CODEC = PacketCodec.tuple(
             Position.PACKET_CODEC, s -> s.pos,
-            PacketCodecs.optional(Position.PACKET_CODEC), s -> Optional.ofNullable(s.linked),
-            PacketCodecs.INTEGER, s -> s.group,
+            PacketCodecs.optional(Position.PACKET_CODEC), StorageMember::linked,
+            PacketCodecs.optional(MemberSettings.PACKET_CODEC), StorageMember::settings,
             StorageMember::new
     );
 
-    public final Position pos;
-    Position linked;
-    int group;
+    private final Position pos;
+    private Optional<Position> linked = Optional.empty();
+    private Optional<MemberSettings> settings = Optional.of(new MemberSettings());
 
-    private StorageMember(Position pos, Optional<Position> linked, int group) {
+    private StorageMember(Position pos, Optional<Position> linked, Optional<MemberSettings> settings) {
         this.pos = pos;
-        this.linked = linked.orElse(null);
-        this.group = group;
+        this.linked = linked;
+        this.settings = settings;
     }
 
     public StorageMember(Position pos) {
@@ -48,21 +43,26 @@ public final class StorageMember {
         return this.pos;
     }
 
-    public Position linked(){
+    public Optional<Position> linked(){
         return this.linked;
     }
 
-    public int group(){
-        return this.group;
+    public Optional<MemberSettings> settings(){
+        return this.settings;
     }
 
-    void setGroup(int group) {
-        this.linked = null;
-        this.group = group;
+    void setSettings(MemberSettings settings){
+        this.settings = Optional.of(settings);
+        this.linked = Optional.empty();
+    }
+
+    void unlink(){
+        this.settings = Optional.of(new MemberSettings());
+        this.linked = Optional.empty();
     }
 
     void linkTo(Position pos) {
-        this.group = 0;
-        this.linked = pos;
+        this.settings = Optional.empty();
+        this.linked = Optional.of(pos);
     }
 }

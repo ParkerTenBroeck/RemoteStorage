@@ -6,6 +6,5 @@ public interface StorageSystemContext {
     void clear();
     void remove(Position pos);
     void link(Position child, Position parent);
-    void updateGroup(Group group);
-    void setGroup(Position member, int group);
+    void setSettings(Position member, MemberSettings settings);
 }

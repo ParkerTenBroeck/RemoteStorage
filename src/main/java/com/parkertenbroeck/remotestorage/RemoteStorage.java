@@ -41,8 +41,7 @@ public class RemoteStorage implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(LinkRemoteStorageMemberC2S.ID, LinkRemoteStorageMemberC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoteStorageActionC2S.ID, RemoteStorageActionC2S.CODEC);
 		PayloadTypeRegistry.playC2S().register(RemoveFromRemoteStorageC2S.ID, RemoveFromRemoteStorageC2S.CODEC);
-		PayloadTypeRegistry.playC2S().register(UpdateGroupRemoteStorageC2S.ID, UpdateGroupRemoteStorageC2S.CODEC);
-		PayloadTypeRegistry.playC2S().register(SetGroupRemoteStorageC2S.ID, SetGroupRemoteStorageC2S.CODEC);
+		PayloadTypeRegistry.playC2S().register(SetSettingsRemoteStorageC2S.ID, SetSettingsRemoteStorageC2S.CODEC);
 
 //      breaks when vanilla clients or clients without this mod join so we send our own packet
 //		Registry.register(Registries.SCREEN_HANDLER, NetworkingUtils.createIdentifier(RemoteStorageScreenHandler.class), REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE);
@@ -123,12 +122,8 @@ public class RemoteStorage implements ModInitializer {
 			}
 		});
 
-		ServerPlayNetworking.registerGlobalReceiver(UpdateGroupRemoteStorageC2S.ID, (payload, context) -> {
-			RemoteStorageSavedState.get(context.player()).updateGroup(payload.group());
-		});
-
-		ServerPlayNetworking.registerGlobalReceiver(SetGroupRemoteStorageC2S.ID, (payload, context) -> {
-			RemoteStorageSavedState.get(context.player()).setGroup(payload.memberPos(), payload.groupId());
+		ServerPlayNetworking.registerGlobalReceiver(SetSettingsRemoteStorageC2S.ID, (payload, context) -> {
+			RemoteStorageSavedState.get(context.player()).setSettings(payload.memberPos(), payload.settings());
 		});
 	}
 }

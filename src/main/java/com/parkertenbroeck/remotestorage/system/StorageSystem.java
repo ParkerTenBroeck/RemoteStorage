@@ -4,7 +4,6 @@ import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.ItemData;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
@@ -21,7 +20,6 @@ public class StorageSystem {
 
     public String name = "Default";
     final HashMap<Position, StorageMember> members = new HashMap<>();
-    final Int2ObjectOpenHashMap<Group> groups = new Int2ObjectOpenHashMap<>();
 
     StorageSystemContext context;
 
@@ -29,14 +27,12 @@ public class StorageSystem {
         instance ->
             instance.group(
                     Codec.STRING.fieldOf("name").forGetter(i -> i.name),
-                    Codec.list(StorageMember.CODEC).fieldOf("members").forGetter(i -> i.members.values().stream().toList()),
-                    Codec.list(Group.CODEC).fieldOf("groups").forGetter(i -> i.groups.values().stream().toList())
+                    Codec.list(StorageMember.CODEC).fieldOf("members").forGetter(i -> i.members.values().stream().toList())
             ).apply(instance, StorageSystem::new)
     );
     public static final PacketCodec<RegistryByteBuf, StorageSystem> PACKET_CODEC = PacketCodec.tuple(
             PacketCodecs.STRING, s -> s.name,
             StorageMember.PACKET_CODEC.collect(PacketCodecs.toList()), s -> s.members.values().stream().toList(),
-            Group.PACKET_CODEC.collect(PacketCodecs.toList()), s -> s.groups.values().stream().toList(),
             StorageSystem::new
     );
 
@@ -44,10 +40,9 @@ public class StorageSystem {
         clear();
     }
 
-    private StorageSystem(String name, List<StorageMember> members, List<Group> groups){
+    private StorageSystem(String name, List<StorageMember> members){
         this.name = name;
-        members.forEach(m -> this.members.put(m.pos, m));
-        groups.forEach(g -> this.groups.put(g.id, g));
+        members.forEach(m -> this.members.put(m.pos(), m));
     }
 
     public void setContext(StorageSystemContext context) {
@@ -68,8 +63,8 @@ public class StorageSystem {
     public boolean unlink(Position pos) {
         var member = members.get(pos);
         if(member==null)return false;
-        if(member.linked==null)return false;
-        member.linked = null;
+        if(member.linked().isEmpty())return false;
+        member.unlink();
         if(context!=null)context.unlink(pos);
         return true;
     }
@@ -84,7 +79,8 @@ public class StorageSystem {
         ChildIsNotMember(false),
         ParentIsNotMember(false),
         CannotCreateCircularLink(true),
-        ParentChildInDifferentWorlds(false);
+        ParentChildInDifferentWorlds(false),
+        LinkExceedsMaxLength(false);
 
         public final boolean modified;
 
@@ -101,29 +97,29 @@ public class StorageSystem {
         if(!members.containsKey(parent)) return LinkResult.ParentIsNotMember;
 
         var start = members.get(child);
-        var current = start;
-        current.linkTo(parent);
+        var current = members.get(parent);
 
         // TODO this doesn't really work properly...
         var encountered = new HashSet<Position>();
         int i = 0;
-        encountered.add(current.pos);
-        while(current.linked!=null){
-            if(encountered.contains(current.linked)){
-                current.linked = null;
-                if(context!=null)context.link(child, parent);
-                return LinkResult.CannotCreateCircularLink;
-            }
-            encountered.add(current.linked);
-            current = members.get(current.linked);
-            if(current==null)break;
-            if(i>=MAX_LINKED_LENGTH){
-                start.linked = null;
+        encountered.add(child);
+        while(current.linked().isPresent()){
+            var linked = current.linked().get();
+            if(encountered.contains(linked)){
+                current.unlink();
+                if(context!=null)context.unlink(linked);
                 break;
+//                return LinkResult.CannotCreateCircularLink;
             }
+            encountered.add(current.linked().get());
+            current = members.get(linked);
+            if(current==null)break;
+
+            if(i>=MAX_LINKED_LENGTH) return LinkResult.LinkExceedsMaxLength;
             i++;
         }
 
+        start.linkTo(parent);
         if(context!=null)context.link(child, parent);
         return LinkResult.Success;
     }
@@ -137,66 +133,35 @@ public class StorageSystem {
     }
 
     public void clear() {
-        groups.clear();
         members.clear();
-        groups.put(0, Group.defaultGroup());
         if(context!=null)context.clear();
     }
 
     private Iterable<StorageMember> inputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.group(o).input.priority()))::iterator;
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.settings(o).input.priority()))::iterator;
     }
 
     private Iterable<StorageMember> outputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.group(o).output.priority()))::iterator;
+        return members.values().stream().sorted(Comparator.comparingInt(o -> this.settings(o).output.priority()))::iterator;
     }
 
     public Collection<StorageMember> unorderedMembers(){
         return members.values();
     }
 
-    public void setGroup(StorageMember member, Group group){
-        if(members.get(member.pos) != member)throw new IllegalArgumentException();
-        if(groups.get(group.id) != group)throw new IllegalArgumentException();
-        setGroup(member.pos, group.id);
+    public void setSettings(Position pos, MemberSettings settings){
+        members.get(pos).setSettings(settings);
+        if(context!=null)context.setSettings(pos, settings);
     }
 
-    public void setGroup(Position pos, int groupId){
-        members.get(pos).group = groupId;
-        if(context!=null)context.setGroup(pos, groupId);
-    }
-
-    public Collection<Group> groups(){
-        return groups.values();
-    }
-
-    public void updateGroup(Group group){
-        groups.put(group.id, group);
-        if(context!=null)context.updateGroup(group);
-    }
-
-    public Group newGroup(){
-        int id = 0;
-        while(groups.containsKey(id)) id++;
-        return new Group(id);
-    }
-
-    public Group groupNoDefault(int id){
-        return groups.get(id);
-    }
-
-    public Group group(int id){
-        return groups.getOrDefault(id, new Group(id));
-    }
-
-    public Group group(StorageMember member){
-        if(members.get(member.pos) != member)throw new IllegalArgumentException();
+    public MemberSettings settings(StorageMember member){
+        if(members.get(member.pos()) != member)throw new IllegalArgumentException();
         var linked = member;
-        for(int i = 0; linked.linked!=null&&i< MAX_LINKED_LENGTH; i ++){
-            linked = members.get(linked.linked);
-            if(linked==null) return Group.defaultGroup();
+        for(int i = 0; linked.linked().isPresent()&&i< MAX_LINKED_LENGTH; i ++){
+            linked = members.get(linked.linked().get());
+            if(linked==null) return new MemberSettings();
         }
-        return group(linked.group);
+        return linked.settings().orElseGet(MemberSettings::new);
     }
 
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item){
@@ -206,8 +171,8 @@ public class StorageSystem {
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item, int desired){
         int moved = 0;
         for (var member : outputPriorityOrdered()) {
-            if(!this.group(member).input.matches(item))continue;
-            if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
+            if(!this.settings(member).input.matches(item))continue;
+            if (member.pos().blockEntityAt(player.server) instanceof Inventory inv) {
                 for(var stack : inv){
                     if(item.equals(stack)){
                         var remaining = desired-moved;
@@ -235,9 +200,9 @@ public class StorageSystem {
         for (var member : inputPriorityOrdered()) {
             if(desiredAmount==0)break;
             if(stack.isEmpty())break;
-            if(!this.group(member).input.matches(new ItemData(stack)))continue;
+            if(!this.settings(member).input.matches(new ItemData(stack)))continue;
 
-            if (member.pos.blockEntityAt(player.server) instanceof Inventory inv) {
+            if (member.pos().blockEntityAt(player.server) instanceof Inventory inv) {
                 for (int i = 0 ; i < inv.size(); i ++) {
                     if(desiredAmount==0)break outer;
 

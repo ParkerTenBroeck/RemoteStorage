@@ -11,33 +11,33 @@ import net.minecraft.util.StringIdentifiable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Configuration {
-    public static final Codec<Configuration> CODEC = RecordCodecBuilder.create(instance ->
+public class IOConfiguration {
+    public static final Codec<IOConfiguration> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
-                    Codec.INT.fieldOf("priority").forGetter(Configuration::priority),
-                    StringIdentifiable.createCodec(ListKind::values).fieldOf("kind").forGetter(Configuration::kind),
-                    Codec.list(Filter.CODEC).fieldOf("filters").forGetter(Configuration::filters)
-            ).apply(instance, Configuration::new)
+                    Codec.INT.fieldOf("priority").forGetter(IOConfiguration::priority),
+                    StringIdentifiable.createCodec(ListKind::values).fieldOf("kind").forGetter(IOConfiguration::kind),
+                    Codec.list(Filter.CODEC).fieldOf("filters").forGetter(IOConfiguration::filters)
+            ).apply(instance, IOConfiguration::new)
     );
 
-    public static final PacketCodec<RegistryByteBuf, Configuration> PACKET_CODEC = PacketCodec.tuple(
-            PacketCodecs.INTEGER, Configuration::priority,
-            PacketCodecs.indexed(i -> ListKind.values()[i], ListKind::ordinal), Configuration::kind,
-            Filter.PACKET_CODEC.collect(PacketCodecs.toList()), Configuration::filters,
-            Configuration::new
+    public static final PacketCodec<RegistryByteBuf, IOConfiguration> PACKET_CODEC = PacketCodec.tuple(
+            PacketCodecs.INTEGER, IOConfiguration::priority,
+            PacketCodecs.indexed(i -> ListKind.values()[i], ListKind::ordinal), IOConfiguration::kind,
+            Filter.PACKET_CODEC.collect(PacketCodecs.toList()), IOConfiguration::filters,
+            IOConfiguration::new
     );
 
     int priority = 0;
     ListKind kind = ListKind.Blacklist;
     final ArrayList<Filter> filters = new ArrayList<>();
 
-    Configuration(int priority, ListKind kind, List<Filter> filters) {
+    IOConfiguration(int priority, ListKind kind, List<Filter> filters) {
         this.setPriority(priority);
         this.setKind(kind);
         this.filters().addAll(filters);
     }
 
-    public Configuration() {
+    public IOConfiguration() {
     }
 
     public boolean matches(ItemData item) {

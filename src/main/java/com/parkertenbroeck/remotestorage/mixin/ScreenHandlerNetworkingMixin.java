@@ -21,8 +21,9 @@ public class ScreenHandlerNetworkingMixin {
             cancellable = true
     )
     private static void sendOpenPacketInjectedHead(CallbackInfo info, @Local ServerPlayerEntity player, @Local ExtendedScreenHandlerFactory<?> factory, @Local ScreenHandler handler){
-        if(handler instanceof RemoteStorageScreenHandler) {
+        if(handler instanceof RemoteStorageScreenHandler h) {
             ServerPlayNetworking.send(player, (CustomPayload) factory.getScreenOpeningData(player));
+            h.serverTick();
             info.cancel();
         }
     }

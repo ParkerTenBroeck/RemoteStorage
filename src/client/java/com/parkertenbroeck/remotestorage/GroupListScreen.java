@@ -1,8 +1,7 @@
 package com.parkertenbroeck.remotestorage;
 
-import com.parkertenbroeck.remotestorage.system.Group;
+import com.parkertenbroeck.remotestorage.system.MemberSettings;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
-import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -21,49 +20,59 @@ public class GroupListScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected @NotNull OwoUIAdapter<FlowLayout> createAdapter() {
+        this.uiAdapter = null;
         return OwoUIAdapter.create(this, Containers::verticalFlow);
     }
 
     @Override
     protected void build(FlowLayout rootComponent) {
-        rootComponent
-                .surface(Surface.VANILLA_TRANSLUCENT)
-                .horizontalAlignment(HorizontalAlignment.CENTER)
-                .verticalAlignment(VerticalAlignment.CENTER);
 
-        rootComponent.child(
-                Containers.verticalFlow(Sizing.content(), Sizing.content())
-            .child(
-                Containers.verticalScroll(Sizing.content(), Sizing.fill(50),
-                        Containers.verticalFlow(Sizing.content(), Sizing.content())
-                                .child(Components.button(Text.of("+ new +"), this::add).margins(Insets.of(5)))
-                                .children(RemoteStorageClient.system.groups().stream().map(this::group).toList())
-                                .horizontalAlignment(HorizontalAlignment.CENTER)
-                )
-                .surface(Surface.DARK_PANEL)
-                .padding(Insets.of(5))
-                .verticalAlignment(VerticalAlignment.CENTER)
-                .horizontalAlignment(HorizontalAlignment.CENTER)
-            )
-        );
+//        rootComponent
+//                .surface(Surface.VANILLA_TRANSLUCENT)
+//                .horizontalAlignment(HorizontalAlignment.CENTER)
+//                .verticalAlignment(VerticalAlignment.CENTER);
+//
+//        var innerScroll = Containers.verticalFlow(Sizing.content(), Sizing.content());
+//
+//        rootComponent.child(
+//                Containers.verticalFlow(Sizing.content(), Sizing.content())
+//            .child(
+//                Containers.verticalScroll(Sizing.content(), Sizing.fill(50),
+//                        innerScroll
+//                                .child(Components.button(Text.of("+ new +"), b -> add()).margins(Insets.of(5)))
+//                                .children(RemoteStorageClient.system.groups().stream().map(g -> group(innerScroll, g)).toList())
+//                                .horizontalAlignment(HorizontalAlignment.CENTER)
+//                )
+//                .surface(Surface.DARK_PANEL)
+//                .padding(Insets.of(5))
+//                .verticalAlignment(VerticalAlignment.CENTER)
+//                .horizontalAlignment(HorizontalAlignment.CENTER)
+//            )
+//        );
     }
 
-    private void add(ButtonComponent buttonComponent) {
-        this.client.setScreen(new EditGroupScreen(RemoteStorageClient.system.newGroup()));
+    private void add() {
+//        this.client.setScreen(new EditGroupScreen(RemoteStorageClient.system.newGroup(), GroupListScreen::new));
     }
 
 
-    private Component group(Group group){
-        return Containers.horizontalFlow(Sizing.content(), Sizing.content())
-                .child(
-                        Components.button(
-                                Text.of("#"+group.id + ": " + group.name()),
-                                b -> {}
-                        )
-                )
-                .child(Components.button(Text.of("D"), b -> {}))
-                .padding(Insets.of(5))
-                .horizontalAlignment(HorizontalAlignment.LEFT)
-                .verticalAlignment(VerticalAlignment.CENTER);
+    private Component group(FlowLayout innerScroll, MemberSettings group){
+        var c = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        return c;
+//                .child(
+//                        Components.button(
+//                                Text.of("#"+group.id + ": " + group.name()),
+//                                b -> this.client.setScreen(new EditGroupScreen(RemoteStorageClient.system.settings(group.id), GroupListScreen::new))
+//                        )
+//                )
+//                .child(Components.button(Text.of("D"), b -> {
+//                    RemoteStorageClient.system.removeGroup(group.id);
+//                    innerScroll.removeChild(c);
+//                    innerScroll.onChildMutated(b);
+//                }))
+//                .padding(Insets.horizontal(5))
+//                .padding(Insets.vertical(1))
+//                .horizontalAlignment(HorizontalAlignment.LEFT)
+//                .verticalAlignment(VerticalAlignment.CENTER);
     }
 }

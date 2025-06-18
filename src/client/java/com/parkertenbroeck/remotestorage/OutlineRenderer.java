@@ -89,10 +89,10 @@ public class OutlineRenderer {
         }
 
         for(var member : members){
-            drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.linked()==null?1.0f:0.0f, 1.0f);
+            drawBox(context.matrixStack(), context.consumers(), member.pos().pos(), 1.0f, 1.0f, member.linked().isEmpty()?1.0f:0.0f, 1.0f);
 
-            if(member.linked()!=null){
-                drawPathLines(context.matrixStack(), context.consumers(), List.of(member.pos().pos(), member.linked().pos()));
+            if(member.linked().isPresent()){
+                drawPathLines(context.matrixStack(), context.consumers(), List.of(member.pos().pos(), member.linked().get().pos()));
             }
         }
     }

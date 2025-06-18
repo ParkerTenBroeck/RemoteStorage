@@ -3,8 +3,6 @@ package com.parkertenbroeck.remotestorage.system;
 import com.mojang.serialization.*;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.parkertenbroeck.remotestorage.RemoteStorage;
-import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Uuids;
 import net.minecraft.world.PersistentState;
@@ -35,10 +33,7 @@ public class RemoteStorageSavedState extends PersistentState {
         public void link(Position child, Position parent) {markDirty();}
 
         @Override
-        public void updateGroup(Group group) {markDirty();}
-
-        @Override
-        public void setGroup(Position member, int group) {markDirty();}
+        public void setSettings(Position member, MemberSettings settings) {markDirty();}
     };
 
     private RemoteStorageSavedState(Map<UUID, StorageSystem> map){

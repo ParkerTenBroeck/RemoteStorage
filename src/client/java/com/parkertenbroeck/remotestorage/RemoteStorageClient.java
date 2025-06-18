@@ -5,7 +5,7 @@ import com.parkertenbroeck.remotestorage.packets.c2s.OpenRemoteStorageC2S;
 import com.parkertenbroeck.remotestorage.packets.s2c.OpenRemoteStorageS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.RemoteStorageContentsDeltaS2C;
 import com.parkertenbroeck.remotestorage.packets.s2c.StorageSystemResyncS2C;
-import com.parkertenbroeck.remotestorage.system.Group;
+import com.parkertenbroeck.remotestorage.system.MemberSettings;
 import com.parkertenbroeck.remotestorage.system.Position;
 import com.parkertenbroeck.remotestorage.system.StorageSystem;
 import com.parkertenbroeck.remotestorage.system.StorageSystemContext;
@@ -73,13 +73,8 @@ public class RemoteStorageClient implements ClientModInitializer {
 		}
 
 		@Override
-		public void updateGroup(Group group) {
-			ClientPlayNetworking.send(new UpdateGroupRemoteStorageC2S(group));
-		}
-
-		@Override
-		public void setGroup(Position member, int group) {
-			ClientPlayNetworking.send(new SetGroupRemoteStorageC2S(member, group));
+		public void setSettings(Position member, MemberSettings settings) {
+			ClientPlayNetworking.send(new SetSettingsRemoteStorageC2S(member, settings));
 		}
 	};
 
@@ -116,16 +111,17 @@ public class RemoteStorageClient implements ClientModInitializer {
 				client.player.sendMessage(Text.of((editMode?"Entered":"Exited")+" remote storage edit mode"), true);
 				linkTarget = null;
 			}
+			if(!editMode)return;
 
 			var target = client.crosshairTarget==null?null:client.crosshairTarget.getType() != HitResult.Type.BLOCK?null:((BlockHitResult)client.crosshairTarget).getBlockPos();
 
 			if(client.options.useKey.isPressed()&&!usePressed){
 				if(shiftHeld(client)){
-					linkTarget = Position.of(client.player, target);
+					linkTarget = target==null?null:Position.of(client.player, target);
 				}else if(ctrlHeld(client)){
 					var member = system.member(Position.of(client.world, target));
 					if(member != null)
-						client.setScreen(new EditGroupScreen(system.group(member)));
+						client.setScreen(new EditMemberScreen(member));
 				}else if(target !=null){
 					var position = Position.of(client.player, target);
 					if(system.unorderedMembers().stream().noneMatch(m -> m.pos().equals(position)))
@@ -203,6 +199,10 @@ public class RemoteStorageClient implements ClientModInitializer {
 					player.sendMessage(Text.of("Child is not a member of the system"), false);
 			case ParentIsNotMember ->
 					player.sendMessage(Text.of("Parent is not a member of the system"), false);
+            case ParentChildInDifferentWorlds ->
+					player.sendMessage(Text.of("Parent and child cannot be linked across worlds"), false);
+            case LinkExceedsMaxLength ->
+					player.sendMessage(Text.of("cannot link, link length has exceeded max"), false);
         }
 	}
 
@@ -231,7 +231,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 		if(world.getBlockState(pos.pos()).getBlock() == Blocks.CHEST){
 			if(world.getBlockState(pos.pos()).get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE){
 				var other = pos.pos().offset(ChestBlock.getFacing(world.getBlockState(pos.pos())));
-				link(pos, Position.of(world, other), true);
+				link(Position.of(world, other), pos, true);
 			}
 		}
 	}

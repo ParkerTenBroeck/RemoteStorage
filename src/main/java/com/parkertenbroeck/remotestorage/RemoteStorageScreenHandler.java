@@ -342,7 +342,7 @@ public class RemoteStorageScreenHandler extends AbstractCraftingScreenHandler {
             lastMap.clear();
 
             for (var member : system.unorderedMembers()) {
-                if (member.pos.blockEntityAt(p.server) instanceof Inventory i) {
+                if (member.pos().blockEntityAt(p.server) instanceof Inventory i) {
                     for(var stack : i){
                         if (stack.isEmpty()) continue;
                         lastMap.compute(new ItemData(stack), (ignored, count) -> (count==null?0:count)+stack.getCount());
