@@ -15,6 +15,8 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -22,11 +24,16 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.Colors;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.world.World;
@@ -100,6 +107,10 @@ public class RemoteStorageClient implements ClientModInitializer {
 
 		HandledScreens.register(REMOTE_STORAGE_SCREEN_HANDLER_SCREEN_HANDLER_TYPE, RemoteStorageScreen::new);
 
+		HudLayerRegistrationCallback.EVENT.register(ld -> {
+			ld.attachLayerAfter(IdentifiedLayer.CHAT, Identifier.of(MOD_ID, "meow"), this::renderHud);
+		});
+
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			while(openRemoteStorage.wasPressed()){
 				ClientPlayNetworking.send(new OpenRemoteStorageC2S());
@@ -121,7 +132,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 				}else if(ctrlHeld(client)){
 					var member = system.member(Position.of(client.world, target));
 					if(member != null)
-						client.setScreen(new EditMemberScreen(member));
+						client.setScreen(new EditMemberScreen(system, member));
 				}else if(target !=null){
 					var position = Position.of(client.player, target);
 					if(system.unorderedMembers().stream().noneMatch(m -> m.pos().equals(position)))
@@ -135,7 +146,7 @@ public class RemoteStorageClient implements ClientModInitializer {
 
 			if (client.options.attackKey.isPressed()&&!attackPressed){
 				if(shiftHeld(client)){
-					client.setScreen(new GroupListScreen());
+					client.setScreen(new MemberListScreen(system));
 				}if(ctrlHeld(client)){
 					if(target!=null)
 						system.remove(Position.of(client.player, target));
@@ -183,6 +194,10 @@ public class RemoteStorageClient implements ClientModInitializer {
 				RemoteStorage.LOGGER.warn("Received remote storage contents packet that doesn't match sync ID");
 			}
 		});
+	}
+
+	private void renderHud(DrawContext context, RenderTickCounter renderTickCounter) {
+		context.drawText(MinecraftClient.getInstance().textRenderer, Text.of("meow"), 0, 0, Colors.WHITE, true);
 	}
 
 	public static void link(Position child, Position parent, boolean suppressCycleMessage){

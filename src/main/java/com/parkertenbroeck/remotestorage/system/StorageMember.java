@@ -65,4 +65,8 @@ public final class StorageMember {
         this.settings = Optional.empty();
         this.linked = Optional.of(pos);
     }
+
+    public String name() {
+        return settings.flatMap(s -> s.name).orElseGet(pos::toShortString);
+    }
 }

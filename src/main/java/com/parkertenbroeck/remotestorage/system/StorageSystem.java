@@ -107,9 +107,9 @@ public class StorageSystem {
             var linked = current.linked().get();
             if(encountered.contains(linked)){
                 current.unlink();
-                if(context!=null)context.unlink(linked);
-                break;
-//                return LinkResult.CannotCreateCircularLink;
+                start.linkTo(parent);
+                if(context!=null)context.link(child, parent);
+                return LinkResult.CannotCreateCircularLink;
             }
             encountered.add(current.linked().get());
             current = members.get(linked);
@@ -138,11 +138,11 @@ public class StorageSystem {
     }
 
     private Iterable<StorageMember> inputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.settings(o).input.priority()))::iterator;
+        return members.values().stream().sorted(Comparator.comparingInt(o -> -this.resolvedSettings(o).input.priority()))::iterator;
     }
 
     private Iterable<StorageMember> outputPriorityOrdered(){
-        return members.values().stream().sorted(Comparator.comparingInt(o -> this.settings(o).output.priority()))::iterator;
+        return members.values().stream().sorted(Comparator.comparingInt(o -> -this.resolvedSettings(o).output.priority()))::iterator;
     }
 
     public Collection<StorageMember> unorderedMembers(){
@@ -154,7 +154,7 @@ public class StorageSystem {
         if(context!=null)context.setSettings(pos, settings);
     }
 
-    public MemberSettings settings(StorageMember member){
+    public MemberSettings resolvedSettings(StorageMember member){
         if(members.get(member.pos()) != member)throw new IllegalArgumentException();
         var linked = member;
         for(int i = 0; linked.linked().isPresent()&&i< MAX_LINKED_LENGTH; i ++){
@@ -171,7 +171,7 @@ public class StorageSystem {
     public ItemStack getFromStorage(ServerPlayerEntity player, ItemData item, int desired){
         int moved = 0;
         for (var member : outputPriorityOrdered()) {
-            if(!this.settings(member).input.matches(item))continue;
+            if(!this.resolvedSettings(member).input.matches(item))continue;
             if (member.pos().blockEntityAt(player.server) instanceof Inventory inv) {
                 for(var stack : inv){
                     if(item.equals(stack)){
@@ -200,7 +200,7 @@ public class StorageSystem {
         for (var member : inputPriorityOrdered()) {
             if(desiredAmount==0)break;
             if(stack.isEmpty())break;
-            if(!this.settings(member).input.matches(new ItemData(stack)))continue;
+            if(!this.resolvedSettings(member).input.matches(new ItemData(stack)))continue;
 
             if (member.pos().blockEntityAt(player.server) instanceof Inventory inv) {
                 for (int i = 0 ; i < inv.size(); i ++) {

@@ -1,9 +1,6 @@
 package com.parkertenbroeck.remotestorage;
 
-import com.parkertenbroeck.remotestorage.system.IOConfiguration;
-import com.parkertenbroeck.remotestorage.system.MemberSettings;
-import com.parkertenbroeck.remotestorage.system.ListKind;
-import com.parkertenbroeck.remotestorage.system.StorageMember;
+import com.parkertenbroeck.remotestorage.system.*;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.Components;
@@ -18,17 +15,18 @@ import java.util.function.Supplier;
 
 public class EditMemberScreen extends BaseOwoScreen<FlowLayout> {
 
+    private final StorageSystem system;
     private final StorageMember member;
     private final Supplier<Screen> returnScreen;
 
-    public EditMemberScreen(StorageMember member, Supplier<Screen> returnScreen) {
+    public EditMemberScreen(StorageSystem system, StorageMember member, Supplier<Screen> returnScreen) {
+        this.system = system;
         this.member = member;
         this.returnScreen = returnScreen;
     }
 
-    public EditMemberScreen(StorageMember member) {
-        this.member = member;
-        returnScreen = null;
+    public EditMemberScreen(StorageSystem system, StorageMember member) {
+        this(system, member, null);
     }
 
     @Override
@@ -93,8 +91,8 @@ public class EditMemberScreen extends BaseOwoScreen<FlowLayout> {
                     Containers.verticalFlow(Sizing.content(), Sizing.content())
                             .child(Components.label(Text.of("Linked to " + linked.toShortString())))
                             .child(Components.button(Text.of("Unlink"), b -> {
-                                RemoteStorageClient.system.unlink(member.pos());
-                                client.setScreen(new EditMemberScreen(member, returnScreen));
+                                system.unlink(member.pos());
+                                client.setScreen(new EditMemberScreen(system, member, returnScreen));
                             }))
                             .padding(Insets.of(5))
                             .surface(Surface.DARK_PANEL)
@@ -121,7 +119,7 @@ public class EditMemberScreen extends BaseOwoScreen<FlowLayout> {
 
     private void save(ButtonComponent buttonComponent) {
         if(member.settings().isPresent())
-            RemoteStorageClient.system.setSettings(member.pos(), member.settings().get());
+            system.setSettings(member.pos(), member.settings().get());
         onClose();
     }
 
